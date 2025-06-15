@@ -85,7 +85,14 @@ def generate_network_topologies(
         cascade_image_shape (Optional[Tuple[int, int, int]], optional): Median shape of low res image for cascade. Defaults to None. 
 
     Returns:
-        Tuple[Dict, Dict, Dict]: 2d, 3d, and 3d cascade topologies with 4 keys, 'batch_size', 'patch_size', 'pooling_ops', 'channels'. 
-                                 3d cascade Dict is left empty if no model is to be trained. 
+        Tuple[Dict, Dict, Dict]: Configs for 2D, 3D, and Cascade Unets
+        Each dict contains:
+        'model_type': 'Unet2d' | 'Unet3d' | 'CascadeUnet3d', 
+        'batch_size': int,
+        'patch_size': Tuple[int, ...],
+        'pooling_ops': Tuple[int, ...],
+        'channels': List[int]
+
+        In case that cascade should not be trained, batch + patch size, pooling ops and channels will be None
     """
     pass
