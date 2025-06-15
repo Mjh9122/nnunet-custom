@@ -24,13 +24,12 @@ class Unet2d(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass for 2D Unet 
-        Applies softmax internally
 
         Args:
             x (torch.Tensor): Input patch
 
         Returns:
-            torch.Tensor: Prediction Mask
+            torch.Tensor: Logits
         """
 
 class Unet3d(nn.Module):
@@ -53,13 +52,12 @@ class Unet3d(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass for 3D Unet 
-        Applies softmax internally
 
         Args:
             x (torch.Tensor): Input patch
 
         Returns:
-            torch.Tensor: Prediction Mask
+            torch.Tensor: Logits
         """
 
 class CascadeUnet3d(nn.Module):
@@ -93,11 +91,10 @@ class CascadeUnet3d(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass for 3D Cascade Unet 
-        Applies softmax internally
 
         Args:
             x (torch.Tensor): Input patch
 
         Returns:
-            torch.Tensor: Prediction Mask
+            torch.Tensor: Logits
         """
