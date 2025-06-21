@@ -3,6 +3,7 @@ import numpy.typing as npt
 import SimpleITK as sitk
 import os
 
+from pathlib import Path
 from typing import Union, Optional, Dict, List, Tuple, Any
 
 NDArray = npt.NDArray[np.float32]
@@ -12,11 +13,11 @@ MIN_3D_BATCH_SIZE = 2
 CROPPING_NORMALIZATION_THRESHOLD = 0.25
 
 
-def load_data(filepath: str) -> NDArray:
+def load_data(filepath: Path) -> NDArray:
     """Loads data from image file into numpy array for preprocessing
 
     Args:
-        filepath (str): filepath to image
+        filepath (Path): filepath to image
 
     Returns:
         NDArray: image
@@ -25,6 +26,9 @@ def load_data(filepath: str) -> NDArray:
         raise (FileNotFoundError)
 
     img = sitk.ReadImage(filepath)
+    img_arr = sitk.GetArrayFromImage(img)
+
+    return img_arr
 
 
 def crop_zeros(image: NDArray) -> Tuple[NDArray, bool]:
