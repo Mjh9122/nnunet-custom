@@ -1,6 +1,7 @@
 import numpy as np
 import numpy.typing as npt
 import SimpleITK as sitk
+import json
 import os
 
 from pathlib import Path
@@ -42,17 +43,17 @@ def crop_zeros(image: NDArray) -> Tuple[NDArray, bool]:
     Returns:
         Tuple[NDArray, bool]: cropped image, reduction > 25%
     """
-    # Find indeces of all nonzero values 
+    # Find indeces of all nonzero values
     nonzero = np.array(np.where(image != 0))
     # Min and max nonzeros for each axis, transpose to get min/max pairs
     nonzero = np.array([np.min(nonzero, 1), np.max(nonzero, 1)]).T
-    
+
     slices = tuple(slice(a, b + 1) for a, b in nonzero)
     cropped = image[slices]
-    
+
     reduction_ratio = cropped.size / image.size
 
-    return cropped, reduction_ratio < .75
+    return cropped, reduction_ratio < 0.75
 
 
 def resample_image(
@@ -180,7 +181,7 @@ def lower_resolution(
     """
 
 
-def modality_detection(json_path: str) -> str:
+def modality_detection(json_path: Path) -> str:
     """Detects image modality by searching json file for 'ct' substring to determine appropriate preprocessing steps
 
     Args:
@@ -189,10 +190,14 @@ def modality_detection(json_path: str) -> str:
     Returns:
         str: image modality detected
     """
-
-
-# arr = np.zeros((64, 64, 64), np.float32)
-# arr[5:60, 5:60, 5:60] = 1
-# cropped, norm_bool = crop_zeros(arr)
-
-# print(cropped.shape)
+    if not os.path.exists(json_path):
+        raise (FileNotFoundError)
+    with open(json_path, "r") as f:
+        dataset_json = json.load(f)
+        modality = dataset_json.get("modality", None)
+        if modality is None:
+            return "No Modality Detected"
+        if "CT" in modality.values():
+            return "CT"
+        else:
+            return "Not CT"

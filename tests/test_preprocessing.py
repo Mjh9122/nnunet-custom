@@ -8,7 +8,7 @@ import numpy as np
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
-from preprocessing import load_data, crop_zeros
+from preprocessing import load_data, crop_zeros, modality_detection
 
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
 
@@ -17,9 +17,11 @@ def test_load_data_nonexistant_file():
     with pytest.raises(FileNotFoundError):
         load_data(TEST_DATA_DIR / "test001.nii.gz")
 
+
 def test_load_dir_path():
     with pytest.raises(RuntimeError):
         load_data(TEST_DATA_DIR)
+
 
 def test_load_simple_file():
     arr = np.ones((2, 2, 2), np.float32)
@@ -36,17 +38,19 @@ def test_load_large_file():
     np.testing.assert_array_equal(arr, load_data(TEST_DATA_DIR / "test003.nii.gz"))
     os.remove(TEST_DATA_DIR / "test003.nii.gz")
 
+
 @pytest.mark.parametrize(
-        'input_dims, ones_slices, output_dims, reduction',
-        (((4, 4), [(0, 4), (0, 4)], (4, 4), False), 
-         ((1,2,3), [(0, 1), (0, 2), (0, 3)], (1, 2, 3), False), 
-         ((16,16,16), [(0, 16), (0, 16), (0, 16)], (16, 16, 16), False), 
-         ((2, 2, 2, 2, 2), [(0, 2) for _ in range(5)] , (2, 2, 2, 2, 2), False), 
-         ((64, 64, 64), [(1, 64), (1, 64), (1, 64)], (63, 63, 63), False),
-         ((64, 64, 64), [(10, 40), (20, 50), (0, 64)], (31, 31, 64), True),
-         ((64, 64), [(4, 64), (0, 60)], (60, 61), False),
-         ((64, 64), [(5, 9), (5, 39)], (5, 35), True)
-         )
+    "input_dims, ones_slices, output_dims, reduction",
+    (
+        ((4, 4), [(0, 4), (0, 4)], (4, 4), False),
+        ((1, 2, 3), [(0, 1), (0, 2), (0, 3)], (1, 2, 3), False),
+        ((16, 16, 16), [(0, 16), (0, 16), (0, 16)], (16, 16, 16), False),
+        ((2, 2, 2, 2, 2), [(0, 2) for _ in range(5)], (2, 2, 2, 2, 2), False),
+        ((64, 64, 64), [(1, 64), (1, 64), (1, 64)], (63, 63, 63), False),
+        ((64, 64, 64), [(10, 40), (20, 50), (0, 64)], (31, 31, 64), True),
+        ((64, 64), [(4, 64), (0, 60)], (60, 61), False),
+        ((64, 64), [(5, 9), (5, 39)], (5, 35), True),
+    ),
 )
 def test_crop_bool(input_dims, ones_slices, output_dims, reduction):
     arr = np.zeros(input_dims, np.float32)
@@ -58,3 +62,19 @@ def test_crop_bool(input_dims, ones_slices, output_dims, reduction):
     assert norm_bool == reduction
 
 
+@pytest.mark.parametrize(
+    "input, expected",
+    (
+        ("dataset_01.json", "Not CT"),
+        ("dataset_02.json", "CT"),
+        ("dataset_03.json", "CT"),
+        ("dataset_04.json", "No Modality Detected"),
+    ),
+)
+def test_modality_detection(input, expected):
+    assert modality_detection(TEST_DATA_DIR / input) == expected
+
+
+def test_modality_dectection_file_nonexistent():
+    with pytest.raises(FileNotFoundError):
+        modality_detection(TEST_DATA_DIR / "dataset_05.json")
