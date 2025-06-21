@@ -33,7 +33,8 @@ def load_data(filepath: Path) -> NDArray:
 
 def crop_zeros(image: NDArray) -> Tuple[NDArray, bool]:
     """Creates bounding box of nonzero values in an image. Also returns whether the total # of voxels
-    is reduced by more than 25%, triggering different normalization strategy later on.
+    is reduced by more than 25%, triggering different normalization strategy later on. This function borrows
+    heavily from the batchgenerators example here: https://github.com/MIC-DKFZ/batchgenerators/blob/master/batchgenerators/examples/brats2017/brats2017_preprocessing.py
 
     Args:
         image (NDArray): original image
@@ -41,7 +42,17 @@ def crop_zeros(image: NDArray) -> Tuple[NDArray, bool]:
     Returns:
         Tuple[NDArray, bool]: cropped image, reduction > 25%
     """
-    pass
+    # Find indeces of all nonzero values 
+    nonzero = np.array(np.where(image != 0))
+    # Min and max nonzeros for each axis, transpose to get min/max pairs
+    nonzero = np.array([np.min(nonzero, 1), np.max(nonzero, 1)]).T
+    
+    slices = tuple(slice(a, b + 1) for a, b in nonzero)
+    cropped = image[slices]
+    
+    reduction_ratio = cropped.size / image.size
+
+    return cropped, reduction_ratio < .75
 
 
 def resample_image(
@@ -180,25 +191,8 @@ def modality_detection(json_path: str) -> str:
     """
 
 
-class nnUNetPreprocessor:
-    def __init__(self, dataset_config: Dict[str, Any]):
-        """Create a nnUnet preprocessor
+# arr = np.zeros((64, 64, 64), np.float32)
+# arr[5:60, 5:60, 5:60] = 1
+# cropped, norm_bool = crop_zeros(arr)
 
-        Args:
-            dataset_config (Dict[str, Any]): config dict with dataset dir, json, modality, etc.
-        """
-        self.config = dataset_config
-        self.dataset_stats = None
-
-    def preprocess_case(
-        self, image_path: str, mask_path: str
-    ) -> Tuple[NDArray, NDArray]:
-        """Preprocess a single image from start to finish
-
-        Args:
-            image_path (str): path to image
-            mask_path (str): path to mask
-
-        Returns:
-            Tuple[NDArray, NDArray]: preprocessed image, preprocessed mask
-        """
+# print(cropped.shape)
