@@ -37,43 +37,24 @@ def test_load_large_file():
     os.remove(TEST_DATA_DIR / "test003.nii.gz")
 
 @pytest.mark.parametrize(
-        'input',
-        ((np.ones((4,4), dtype=np.float32)), 
-         (np.ones((1,2,3), dtype=np.float32)), 
-         (np.ones((16,16,16), dtype=np.float32)), 
+        'input_dims, ones_slices, output_dims, reduction',
+        (((4, 4), [(0, 4), (0, 4)], (4, 4), False), 
+         ((1,2,3), [(0, 1), (0, 2), (0, 3)], (1, 2, 3), False), 
+         ((16,16,16), [(0, 16), (0, 16), (0, 16)], (16, 16, 16), False), 
+         ((2, 2, 2, 2, 2), [(0, 2) for _ in range(5)] , (2, 2, 2, 2, 2), False), 
+         ((64, 64, 64), [(1, 64), (1, 64), (1, 64)], (63, 63, 63), False),
+         ((64, 64, 64), [(10, 40), (20, 50), (0, 64)], (31, 31, 64), True),
+         ((64, 64), [(4, 64), (0, 60)], (60, 61), False),
+         ((64, 64), [(5, 9), (5, 39)], (5, 35), True)
          )
 )
-def test_crop_bool_no_crop(input):
-    cropped, norm_bool = crop_zeros(input)
-    np.testing.assert_array_equal(cropped, input, np.float32)
-    assert norm_bool == False
-
-def test_crop_bool_3d_false():
-    arr = np.zeros((64, 64, 64), np.float32)
-    arr[1:, 1:, 1:] = 1
+def test_crop_bool(input_dims, ones_slices, output_dims, reduction):
+    arr = np.zeros(input_dims, np.float32)
+    if ones_slices is not None:
+        slices = tuple(slice(a, b + 1) for a, b in ones_slices)
+        arr[slices] = 1
     cropped, norm_bool = crop_zeros(arr)
-    np.testing.assert_array_equal(cropped, np.ones((63, 63, 63), np.float32))
-    assert norm_bool == False
-
-def test_crop_bool_3d_true():
-    arr = np.zeros((64, 64, 64), np.float32)
-    arr[10:40, 40:60, 0:64] = 1
-    cropped, norm_bool = crop_zeros(arr)
-    np.testing.assert_array_equal(cropped, np.ones((30, 20, 64), np.float32))
-    assert norm_bool == True
-
-def test_crop_bool_2d_false():
-    arr = np.zeros((64, 64), np.float32)
-    arr[4:, :60] = 1
-    cropped, norm_bool = crop_zeros(arr)
-    np.testing.assert_array_equal(cropped, np.ones((60, 60), np.float32))
-    assert norm_bool == False
-
-def test_crop_bool_2d_true():
-    arr = np.zeros((64, 64), np.float32)
-    arr[5:10, 5:40] = 1
-    cropped, norm_bool = crop_zeros(arr)
-    np.testing.assert_array_equal(cropped, np.ones((5, 35), np.float32))
-    assert norm_bool == True
+    np.testing.assert_array_equal(cropped, np.ones(output_dims, np.float32))
+    assert norm_bool == reduction
 
 
