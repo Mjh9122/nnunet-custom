@@ -1,13 +1,16 @@
 import numpy as np
 import numpy.typing as npt
+import SimpleITK as sitk
+import os
 
 from typing import Union, Optional, Dict, List, Tuple, Any
 
 NDArray = npt.NDArray[np.float32]
-CT_CLIP_VALUES = (.5, 99.5)
+CT_CLIP_VALUES = (0.5, 99.5)
 MAX_3D_PATCH_SIZE = (256, 256, 256)
 MIN_3D_BATCH_SIZE = 2
-CROPPING_NORMALIZATION_THRESHOLD = .25
+CROPPING_NORMALIZATION_THRESHOLD = 0.25
+
 
 def load_data(filepath: str) -> NDArray:
     """Loads data from image file into numpy array for preprocessing
@@ -18,11 +21,15 @@ def load_data(filepath: str) -> NDArray:
     Returns:
         NDArray: image
     """
-    pass
+    if not os.path.exists(filepath):
+        raise (FileNotFoundError)
 
-def crop_zeros(image:NDArray) -> Tuple[NDArray, bool]:
-    """Creates bounding box of nonzero values in an image. Also returns whether the total # of voxels 
-    is reduced by more than 25%, triggering different normalization strategy later on. 
+    img = sitk.ReadImage(filepath)
+
+
+def crop_zeros(image: NDArray) -> Tuple[NDArray, bool]:
+    """Creates bounding box of nonzero values in an image. Also returns whether the total # of voxels
+    is reduced by more than 25%, triggering different normalization strategy later on.
 
     Args:
         image (NDArray): original image
@@ -32,7 +39,12 @@ def crop_zeros(image:NDArray) -> Tuple[NDArray, bool]:
     """
     pass
 
-def resample_image(image:NDArray, old_spacing:Tuple[float, float, float], new_spacing:Tuple[float, float, float]) -> NDArray:
+
+def resample_image(
+    image: NDArray,
+    old_spacing: Tuple[float, float, float],
+    new_spacing: Tuple[float, float, float],
+) -> NDArray:
     """Resamples image to new voxel spacing using cubic spline interpolation
 
     Args:
@@ -42,10 +54,15 @@ def resample_image(image:NDArray, old_spacing:Tuple[float, float, float], new_sp
 
     Returns:
         NDArray: resampled image
-    """ 
+    """
     pass
 
-def resample_mask(mask:NDArray, old_spacing:Tuple[float, float, float], new_spacing:Tuple[float, float, float]) -> NDArray:
+
+def resample_mask(
+    mask: NDArray,
+    old_spacing: Tuple[float, float, float],
+    new_spacing: Tuple[float, float, float],
+) -> NDArray:
     """Resamples mask to new voxel spacing using nearest neighbor interpolation
 
     Args:
@@ -55,19 +72,19 @@ def resample_mask(mask:NDArray, old_spacing:Tuple[float, float, float], new_spac
 
     Returns:
         NDArray: resampled mask
-    """ 
+    """
     pass
 
 
 def normalize(
-        image:NDArray, 
-        modality: str, 
-        cropping_threshold_met: bool,
-        dataset_stats: Optional[Tuple[float, float]] = None, 
-        clipping_percentiles:Optional[Tuple[float, float]] = (.5, 99.5), 
-        mask:Optional[NDArray] = None,
-    ) -> NDArray:
-    """Normalizes images using nnU-net normalization strategy. 
+    image: NDArray,
+    modality: str,
+    cropping_threshold_met: bool,
+    dataset_stats: Optional[Tuple[float, float]] = None,
+    clipping_percentiles: Optional[Tuple[float, float]] = (0.5, 99.5),
+    mask: Optional[NDArray] = None,
+) -> NDArray:
+    """Normalizes images using nnU-net normalization strategy.
 
     For CT images: values are clipped using [.5 - 99.5]. percentile values of non-background values,
     followed by z-score normilization using dataset wide statistics. Dataset stats cannot be None when
@@ -89,15 +106,13 @@ def normalize(
     """
     pass
 
+
 def compute_dataset_stats(
-        dataset_dir: str, 
-        modality: str, 
-        image_suffix: str, 
-        mask_suffix: str      
-    ) -> Dict[str, Any]:
+    dataset_dir: str, modality: str, image_suffix: str, mask_suffix: str
+) -> Dict[str, Any]:
     """Calculate key statistics from datasets.
     From CT datasets: mean, std, .5, 99.5 values from foreground classes. Median shape and voxel spacing.
-    From non-CT datasets: Median shape and voxel spacing. 
+    From non-CT datasets: Median shape and voxel spacing.
 
     Args:
         dataset_dir: path to dataset images
@@ -106,7 +121,7 @@ def compute_dataset_stats(
         mask_suffix: suffix to identify masks in dir
 
     Returns:
-        Dict[str, Tuple[float, float]]: 'percentiles':(low:float, high:float), 
+        Dict[str, Tuple[float, float]]: 'percentiles':(low:float, high:float),
                                         'stats':(mean:float, std:float),
                                         'shape':(int, int, int),
                                         'spacing':(float, float, float)
@@ -114,12 +129,13 @@ def compute_dataset_stats(
     """
     pass
 
+
 def determine_cascade_necessity(median_shape: Tuple[float, float, float]) -> bool:
     """Determines if U-Net Cascade needed based on nnU-Net heuristics.
-    
+
     Returns True if median shape contains >4x voxels than can be processed
     by 3D U-Net with patch size 128³ and batch size 2. Otherwise 3d cascade network is not trained.
-    
+
     Args:
         median_shape (Tuple[float, float, float]): Median shape of post-resampled images
 
@@ -127,13 +143,14 @@ def determine_cascade_necessity(median_shape: Tuple[float, float, float]) -> boo
         bool: whether the cascade is determined to be necessary
     """
 
+
 def lower_resolution(
-        median_shape: Tuple[float, float, float], 
-        voxel_spacing: Tuple[float, float, float], 
-        image: NDArray
-    ) -> Tuple[NDArray, Tuple[float, float, float]]:
-    """Follows nnU-net algorithm for lowering image resolution for input into 3d cascade. 
-    Determines appropriate size and voxel spacing by resampling images. 
+    median_shape: Tuple[float, float, float],
+    voxel_spacing: Tuple[float, float, float],
+    image: NDArray,
+) -> Tuple[NDArray, Tuple[float, float, float]]:
+    """Follows nnU-net algorithm for lowering image resolution for input into 3d cascade.
+    Determines appropriate size and voxel spacing by resampling images.
 
     For anisotropic images, higher resolution axes are resampled first.
     Once resolution on all axis is the same, all axes are resampled simultaniously.
@@ -147,6 +164,7 @@ def lower_resolution(
         Tuple[NDArray, Tuple[float, float, float]]: low res image, new voxel spacing
     """
 
+
 def modality_detection(json_path: str) -> str:
     """Detects image modality by searching json file for 'ct' substring to determine appropriate preprocessing steps
 
@@ -157,6 +175,7 @@ def modality_detection(json_path: str) -> str:
         str: image modality detected
     """
 
+
 class nnUNetPreprocessor:
     def __init__(self, dataset_config: Dict[str, Any]):
         """Create a nnUnet preprocessor
@@ -166,8 +185,10 @@ class nnUNetPreprocessor:
         """
         self.config = dataset_config
         self.dataset_stats = None
-    
-    def preprocess_case(self, image_path: str, mask_path: str) -> Tuple[NDArray, NDArray]:
+
+    def preprocess_case(
+        self, image_path: str, mask_path: str
+    ) -> Tuple[NDArray, NDArray]:
         """Preprocess a single image from start to finish
 
         Args:

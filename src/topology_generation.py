@@ -3,22 +3,24 @@ import numpy.typing as npt
 
 from typing import Union, Optional, Dict, List, Tuple, Any
 
-MAX_3D_PATCH_VOXELS = 128 ** 3
+MAX_3D_PATCH_VOXELS = 128**3
 MIN_3D_BATCH_SIZE = 2
 MAX_POOLING_LAYERS_2D = 6
 MAX_POOLING_LAYERS_3D = 5
-MAX_SINGLE_BATCH_VOXEL_PERCENTAGE = .05
+MAX_SINGLE_BATCH_VOXEL_PERCENTAGE = 0.05
 MAX_CHANNELS = 30
 STOPPING_SIZE = 8
 
 
-def determine_2d_patch_batch(image_shape:Tuple[int, int, int], total_voxels:int) -> Tuple[Tuple[int, int], int]:
-    """Determines an appropriate patch and batch size for the 2d Unet. 
+def determine_2d_patch_batch(
+    image_shape: Tuple[int, int, int], total_voxels: int
+) -> Tuple[Tuple[int, int], int]:
+    """Determines an appropriate patch and batch size for the 2d Unet.
        Starts with (256, 256) and 42 and adjusts based on gpu memory available and maximum voxels per step
 
        Adapts to median plane size of the image (using smallest in plane spacing, corrisponding to the highest resolution).
        Tries to train entire slices by applying the above rule.
-       
+
        Patch size x Batch size < .05 x total_voxels
 
     Args:
@@ -30,7 +32,10 @@ def determine_2d_patch_batch(image_shape:Tuple[int, int, int], total_voxels:int)
     """
     pass
 
-def determine_3d_patch_batch(image_shape:Tuple[int, int, int], total_voxels:int) -> Tuple[Tuple[int, int, int], int]:
+
+def determine_3d_patch_batch(
+    image_shape: Tuple[int, int, int], total_voxels: int
+) -> Tuple[Tuple[int, int, int], int]:
     """Determines an appropriate patch and batch size for the 3d Unet
     Starts with (128, 128, 128) and 2.
 
@@ -49,9 +54,11 @@ def determine_3d_patch_batch(image_shape:Tuple[int, int, int], total_voxels:int)
     pass
 
 
-def determine_pooling_operations(median_image_shape:Tuple[int, ...]) -> Tuple[int, ...]:
+def determine_pooling_operations(
+    median_image_shape: Tuple[int, ...]
+) -> Tuple[int, ...]:
     """Determines the number of pooling operations applied to each axis. Stops when axis length is less than STOPPING_SIZE or the
-    number of pooling operations is higher than 5 or 6 depending on 2d vs 3d nets. 
+    number of pooling operations is higher than 5 or 6 depending on 2d vs 3d nets.
 
     Args:
         median_image_shape (Union[Tuple[int, int], Tuple[int, int, int]]): Median image input shape, provides starting size before pooling
@@ -61,7 +68,8 @@ def determine_pooling_operations(median_image_shape:Tuple[int, ...]) -> Tuple[in
     """
     pass
 
-def determine_channels_per_layer(pooling_operations:Tuple[int, ...]) -> List[int]:
+
+def determine_channels_per_layer(pooling_operations: Tuple[int, ...]) -> List[int]:
     """Determines number of channels per layer
     Number of channels double each layer starting at 1 with a maximum of 30 channels.
 
@@ -73,21 +81,22 @@ def determine_channels_per_layer(pooling_operations:Tuple[int, ...]) -> List[int
     """
     pass
 
+
 def generate_network_topologies(
-        median_image_shape: Tuple[int, int, int], 
-        cascade_image_shape: Optional[Tuple[int, int, int]] = None
-    ) -> Tuple[Dict, Dict, Dict]:
+    median_image_shape: Tuple[int, int, int],
+    cascade_image_shape: Optional[Tuple[int, int, int]] = None,
+) -> Tuple[Dict, Dict, Dict]:
     """Generates network topologies for 2d, 3d, and 3d cascade (if necessary) unets. Orchistrates other topology generation functions.
     Logic for cascade shape is applied in preprocessing.
 
     Args:
         median_image_shape (Tuple[int, int, int]): Median dataset image shape
-        cascade_image_shape (Optional[Tuple[int, int, int]], optional): Median shape of low res image for cascade. Defaults to None. 
+        cascade_image_shape (Optional[Tuple[int, int, int]], optional): Median shape of low res image for cascade. Defaults to None.
 
     Returns:
         Tuple[Dict, Dict, Dict]: Configs for 2D, 3D, and Cascade Unets
         Each dict contains:
-        'model_type': 'Unet2d' | 'Unet3d' | 'CascadeUnet3d', 
+        'model_type': 'Unet2d' | 'Unet3d' | 'CascadeUnet3d',
         'batch_size': int,
         'patch_size': Tuple[int, ...],
         'pooling_ops': Tuple[int, ...],

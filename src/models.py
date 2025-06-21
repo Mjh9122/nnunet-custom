@@ -1,19 +1,20 @@
-import torch 
+import torch
 import torch.nn as nn
 import torch.functional as F
 
 from typing import Union, Optional, Dict, List, Tuple, Any
 
+
 class Unet2d(nn.Module):
     def __init__(self, channels: List[int], pooling_layers: List[int]) -> None:
-        """Implementation of 2D Unet as described by the original Unet paper. 
+        """Implementation of 2D Unet as described by the original Unet paper.
         Included in nnU-net as 2D models are believed to perform better on some anisotropic datasets
 
         Implementaton Details:
         Uses leaky ReLU w/ slope 1e-2
         Uses instance normalization rather than batch
         Does not include residual connections populatized after orig. nnU-net paper
-        Each pooling layer contains 2 3x3 conv layers 
+        Each pooling layer contains 2 3x3 conv layers
         Upconv layers are transposed conv ops
         Skip connections connect encoder layer to corrisponding decoder layers
 
@@ -23,7 +24,7 @@ class Unet2d(nn.Module):
         """
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass for 2D Unet 
+        """Forward pass for 2D Unet
 
         Args:
             x (torch.Tensor): Input patch
@@ -31,6 +32,7 @@ class Unet2d(nn.Module):
         Returns:
             torch.Tensor: Logits
         """
+
 
 class Unet3d(nn.Module):
     def __init__(self, channels: List[int], pooling_layers: List[int]) -> None:
@@ -41,7 +43,7 @@ class Unet3d(nn.Module):
         Uses leaky ReLU w/ slope 1e-2
         Uses instance normalization rather than batch
         Does not include residual connections populatized after orig. nnU-net paper
-        Each pooling layer contains 2 3x3x3 conv layers 
+        Each pooling layer contains 2 3x3x3 conv layers
         Upconv layers are transposed conv ops
         Skip connections connect encoder layer to corrisponding decoder layers
 
@@ -51,7 +53,7 @@ class Unet3d(nn.Module):
         """
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass for 3D Unet 
+        """Forward pass for 3D Unet
 
         Args:
             x (torch.Tensor): Input patch
@@ -60,16 +62,17 @@ class Unet3d(nn.Module):
             torch.Tensor: Logits
         """
 
+
 class CascadeUnet3d(nn.Module):
     def __init__(
-            self, 
-            low_res_channels: List[int], 
-            low_res_pooling_layers: List[int],
-            high_res_channels: List[int], 
-            high_res_pooling_layers: List[int],
-        ) -> None:
-        """Implementation of 3D Cascade Unet as described by the original Unet paper. 
-        
+        self,
+        low_res_channels: List[int],
+        low_res_pooling_layers: List[int],
+        high_res_channels: List[int],
+        high_res_pooling_layers: List[int],
+    ) -> None:
+        """Implementation of 3D Cascade Unet as described by the original Unet paper.
+
         Implementaton Details:
         Stage 1 (low res) Unet creates predictions on downsampled image
         Predictions are upsampled and combined with original image for refinement
@@ -77,7 +80,7 @@ class CascadeUnet3d(nn.Module):
         Uses leaky ReLU w/ slope 1e-2
         Uses instance normalization rather than batch
         Does not include residual connections populatized after orig. nnU-net paper
-        Each pooling layer contains 2 3x3x3 conv layers 
+        Each pooling layer contains 2 3x3x3 conv layers
         Upconv layers are transposed conv ops
         Skip connections connect encoder layer to corrisponding decoder layers
 
@@ -90,7 +93,7 @@ class CascadeUnet3d(nn.Module):
         """
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass for 3D Cascade Unet 
+        """Forward pass for 3D Cascade Unet
 
         Args:
             x (torch.Tensor): Input patch
