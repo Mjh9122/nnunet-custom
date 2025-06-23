@@ -11,6 +11,7 @@ sys.path.insert(0, str(src_path))
 from preprocessing import load_data, crop_zeros, modality_detection, resample_image, compute_dataset_stats
 
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
+CT_DATASET_DIR = Path('/mnt/d/dummy_CT')
 
 np.random.seed(42)
 
@@ -231,14 +232,64 @@ def test_compute_dataset_CT():
 
     masked_vals = np.concat([arr[mask == 1] for arr, mask in zip(arrs, masks)])
 
-    stats = compute_dataset_stats(TEST_DATA_DIR, 'NOT CT', 'imagesTr', 'labelsTr')
-    #mean, std = stats['stats']
-    #low, high = stats['percentiles']
+    stats = compute_dataset_stats(TEST_DATA_DIR, 'CT', 'imagesTr', 'labelsTr')
+    mean, std = stats['stats']
+    low, high = stats['percentiles']
 
-    #np.testing.assert_almost_equal(masked_vals.mean(), mean)
-    #np.testing.assert_almost_equal(masked_vals.std(), std)
-    #np.testing.assert_almost_equal(np.percentile(masked_vals, .5), low)
-    #np.testing.assert_almost_equal(np.percentile(masked_vals, 99.5), high)
+    assert abs(masked_vals.mean() - mean) < (masked_vals.mean() * .001) 
+    assert abs(masked_vals.std() - std) < (masked_vals.std() * .001) 
+    
+    assert abs(np.percentile(masked_vals, .5) - low) < (np.percentile(masked_vals, .5) * .001) + 1e-9
+    assert abs(np.percentile(masked_vals, 99.5) - high) < (np.percentile(masked_vals, 99.5) * .001) + 1e-9
+    
     np.testing.assert_array_equal(stats['shape'], np.array([3, 3, 3]))
     np.testing.assert_array_equal(stats['spacing'], np.array([.5, 1., 1.]))
+
+def test_reservoir_on_real_ct_masks():
+    image_path = CT_DATASET_DIR / "imagesTr"
+    label_path = CT_DATASET_DIR / "labelsTr"
     
+    images = os.listdir(image_path)
+
+    all_voxels = []
+    shapes = []
+    spacings = []
+
+    for image in images:
+        img = sitk.ReadImage(image_path / image)
+        mask = sitk.ReadImage(label_path / image)
+
+        img_np = sitk.GetArrayFromImage(img)
+        mask_np = sitk.GetArrayFromImage(mask)
+
+        masked_voxels =  img_np[mask_np != 0]
+
+        all_voxels.extend(masked_voxels)
+
+        shapes.append(img.GetSize())
+        spacings.append(img.GetSpacing())
+
+    stats = compute_dataset_stats(CT_DATASET_DIR, 'CT', 'imagesTr', 'labelsTr')
+    
+    all_voxels = np.array(all_voxels)
+    mean = all_voxels.mean()
+    std = all_voxels.std()
+
+    shapes = np.array(shapes).T
+    shape = np.median(shapes, 1)
+
+    spacings = np.array(spacings).T
+    spacing = np.median(spacings, 1) 
+
+    assert abs(all_voxels.mean() - mean) < (all_voxels.mean() * .001) 
+    assert abs(all_voxels.std() - std) < (all_voxels.std() * .001) 
+    mean, std = stats['stats']
+    low, high = stats['percentiles']
+
+    assert low > np.percentile(all_voxels, .25)
+    assert low < np.percentile(all_voxels, .75)
+    assert high > np.percentile(all_voxels, 99.25)
+    assert high < np.percentile(all_voxels, 99.75)
+    
+    np.testing.assert_array_equal(stats['shape'], shape)
+    np.testing.assert_array_equal(stats['spacing'], spacing)

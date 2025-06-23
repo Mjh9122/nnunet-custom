@@ -5,9 +5,11 @@ import json
 import os
 
 from skimage.transform import resize
-
+from tqdm import tqdm
 from pathlib import Path
 from typing import Union, Optional, Dict, List, Tuple, Any
+
+np.random.seed(42)
 
 NDArray = npt.NDArray[np.float32]
 CT_CLIP_VALUES = (0.5, 99.5)
@@ -162,15 +164,46 @@ def compute_dataset_stats(
             if image not in labels:
                 raise(Exception(f'All files in image directory must have a corrisponding segmentation mask. {image} was not found in {label_path}'))
         
-        for image in images:
+        count, total, squares = 0, 0, 0
+        percentile_pool = []
+        max_pool_len = 1_000_000
+
+        for image in tqdm(images):
             img = sitk.ReadImage(image_path / image)
             mask = sitk.ReadImage(label_path / image)
 
             img_np = sitk.GetArrayFromImage(img)
             mask_np = sitk.GetArrayFromImage(mask)
 
+            masked_voxels =  img_np[mask_np != 0]
+
+            n = len(masked_voxels)
+
+            count += n
+            total += np.sum(masked_voxels)
+            squares += np.sum(masked_voxels ** 2)
+
             dims.append(img.GetSize())
             spacings.append(img.GetSpacing())
+
+            if len(percentile_pool) < max_pool_len:
+                percentile_pool.extend(masked_voxels)
+            else:
+                indices = np.random.randint(0, len(percentile_pool), size = min(n, len(percentile_pool)))
+                for i, idx in enumerate(indices):
+                    percentile_pool[idx] = masked_voxels[i]
+
+        mean = total/count
+        var = squares/count - mean ** 2
+        std = np.sqrt(var)
+
+        pool = np.array(percentile_pool)
+        low = np.percentile(pool, .5)
+        high = np.percentile(pool, 99.5)
+
+        stats['stats'] = (mean, std)
+        stats['percentiles'] = (low, high)
+
     else:
         for image in images:
             img = sitk.ReadImage(image_path / image)
