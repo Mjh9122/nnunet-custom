@@ -13,7 +13,7 @@ np.random.seed(42)
 
 NDArray = npt.NDArray[np.float32]
 CT_CLIP_VALUES = (0.5, 99.5)
-MAX_3D_PATCH_SIZE = (256, 256, 256)
+MAX_3D_PATCH_SIZE = (128, 128, 128)
 MIN_3D_BATCH_SIZE = 2
 CROPPING_NORMALIZATION_THRESHOLD = 0.25
 
@@ -251,18 +251,22 @@ def compute_dataset_stats(
     return stats
 
 
-def determine_cascade_necessity(median_shape: Tuple[float, float, float]) -> bool:
+def determine_cascade_necessity(median_shape: Tuple[int, int, int]) -> bool:
     """Determines if U-Net Cascade needed based on nnU-Net heuristics.
 
     Returns True if median shape contains >4x voxels than can be processed
     by 3D U-Net with patch size 128³ and batch size 2. Otherwise 3d cascade network is not trained.
 
     Args:
-        median_shape (Tuple[float, float, float]): Median shape of post-resampled images
+        median_shape (Tuple[int, int, int]): Median shape of post-resampled images
 
     Returns:
         bool: whether the cascade is determined to be necessary
     """
+    max_voxels = np.array(MAX_3D_PATCH_SIZE).prod()
+    current_voxels = np.array(median_shape).prod()
+
+    return current_voxels > 4 * max_voxels
 
 
 def lower_resolution(

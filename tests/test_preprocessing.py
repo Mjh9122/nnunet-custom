@@ -15,6 +15,7 @@ from preprocessing import (
     resample_image,
     compute_dataset_stats,
     normalize,
+    determine_cascade_necessity,
 )
 
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
@@ -386,3 +387,21 @@ def test_normalize_non_ct_withzeros():
     expected[2, 2] = (54 / 16) / np.sqrt(95 / 64)
 
     np.testing.assert_allclose(expected, result)
+
+
+@pytest.mark.parametrize(
+    "input, expected",
+    (
+        ((115, 320, 232), True),
+        ((138, 169, 138), False),
+        ((382, 512, 512), True),
+        ((36, 50, 35), False),
+        ((20, 320, 319), False),
+        ((252, 512, 512), True),
+        ((96, 512, 512), True),
+    ),
+)
+def test_cascade_necessity(input, expected):
+    result = determine_cascade_necessity(input)
+
+    assert result == expected
