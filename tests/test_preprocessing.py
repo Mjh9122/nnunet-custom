@@ -16,6 +16,7 @@ from preprocessing import (
     compute_dataset_stats,
     normalize,
     determine_cascade_necessity,
+    lower_resolution
 )
 
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
@@ -393,6 +394,7 @@ def test_normalize_non_ct_withzeros():
     "input, expected",
     (
         ((115, 320, 232), True),
+        ((482, 512, 512), True),
         ((138, 169, 138), False),
         ((382, 512, 512), True),
         ((36, 50, 35), False),
@@ -405,3 +407,16 @@ def test_cascade_necessity(input, expected):
     result = determine_cascade_necessity(input)
 
     assert result == expected
+
+@pytest.mark.parametrize(
+        'dims, spacing, expected', 
+        (
+            ((512, 512, 400), (1., 1., 1.), (4., 4., 4.)),
+            ((320, 320, 100), (.5, .5, 2.), (1., 1., 2.)),
+            ((1024, 1024, 64), (.125, .125, 1.), (.5, .5, 1.)),
+            ((400, 400, 150), (.8, .8, 2.5), (1.6, 1.6, 2.5))
+        )
+)
+def test_lower_resolution(dims, spacing, expected):
+    result = lower_resolution(dims, spacing)
+    np.testing.assert_allclose(np.array(result), np.array(expected))

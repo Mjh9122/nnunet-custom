@@ -270,12 +270,11 @@ def determine_cascade_necessity(median_shape: Tuple[int, int, int]) -> bool:
 
 
 def lower_resolution(
-    median_shape: Tuple[float, float, float],
+    median_shape: Tuple[int, int, int],
     voxel_spacing: Tuple[float, float, float],
-    image: NDArray,
-) -> Tuple[NDArray, Tuple[float, float, float]]:
+) -> Tuple[float, float, float]:
     """Follows nnU-net algorithm for lowering image resolution for input into 3d cascade.
-    Determines appropriate size and voxel spacing by resampling images.
+    Determines appropriate size and voxel spacing for resampling images.
 
     For anisotropic images, higher resolution axes are resampled first.
     Once resolution on all axis is the same, all axes are resampled simultaniously.
@@ -283,11 +282,24 @@ def lower_resolution(
     Args:
         median_shape (Tuple[float, float, float]): Median shape of dataset
         voxel_spacing (Tuple[float, float, float]): voxel spacing of dataset
-        image (NDArray): original image
 
     Returns:
         Tuple[NDArray, Tuple[float, float, float]]: low res image, new voxel spacing
     """
+    current_size = np.array(median_shape)
+    current_spacing = np.array(voxel_spacing)
+    max_voxels = np.array(MAX_3D_PATCH_SIZE).prod()
+    
+    total_voxels = current_size.prod()
+
+    while total_voxels > 4 * max_voxels:
+        high_res_axis = current_spacing == min(current_spacing)
+        current_spacing[high_res_axis] *= 2
+        current_size[high_res_axis]//=2
+        total_voxels = current_size.prod()
+    
+    return current_spacing
+    
 
 
 def modality_detection(json_path: Path) -> str:
