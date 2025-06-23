@@ -64,9 +64,9 @@ def resample_image(
     image: NDArray,
     old_spacing: Tuple[float, float, float],
     new_spacing: Tuple[float, float, float],
-    is_segmentation: bool
+    is_segmentation: bool,
 ) -> NDArray:
-    """Resamples image to new voxel spacing using cubic spline interpolation or nearest 
+    """Resamples image to new voxel spacing using cubic spline interpolation or nearest
     neighbor (cublic spline order 0) based on whether an image or segmentation mask is passed in
 
     Args:
@@ -79,20 +79,28 @@ def resample_image(
         NDArray: resampled image
     """
     if len(old_spacing) != len(new_spacing):
-        raise(Exception('New and old spacings must have same length'))
-    
+        raise (Exception("New and old spacings must have same length"))
+
     old_dims = np.array(image.shape)
 
     if len(old_dims) != len(new_spacing):
-        raise(Exception('New spacing and image shape must have same length'))
-    
-    new_dims = np.array([int(dim * old / new) for dim, old, new in zip(old_dims, old_spacing, new_spacing)])
+        raise (Exception("New spacing and image shape must have same length"))
+
+    new_dims = np.array(
+        [
+            int(dim * old / new)
+            for dim, old, new in zip(old_dims, old_spacing, new_spacing)
+        ]
+    )
 
     if is_segmentation:
-        reshaped = np.round(resize(image, new_dims, 0, mode = 'edge', anti_aliasing=False)).astype(int)
+        reshaped = np.round(
+            resize(image, new_dims, 0, mode="edge", anti_aliasing=False)
+        ).astype(int)
     else:
-        reshaped = resize(image, new_dims, 3, mode = 'edge', anti_aliasing=False)
+        reshaped = resize(image, new_dims, 3, mode="edge", anti_aliasing=False)
     return reshaped
+
 
 def normalize(
     image: NDArray,
@@ -100,13 +108,12 @@ def normalize(
     cropping_threshold_met: bool,
     dataset_stats: Optional[Tuple[float, float]] = None,
     clipping_percentiles: Optional[Tuple[float, float]] = (0.5, 99.5),
-    mask: Optional[NDArray] = None,
 ) -> NDArray:
     """Normalizes images using nnU-net normalization strategy.
 
     For CT images: values are clipped using [.5 - 99.5] percentile values of non-background values,
     followed by z-score normilization using dataset wide statistics. Dataset stats cannot be None when
-    modality is 'ct'
+    modality is 'CT'
 
     For other modalities: z-score normilization applied to each sample
 
@@ -114,15 +121,35 @@ def normalize(
 
     Args:
         image: original image
-        modality: image modality ('ct', 'mri', etc) found via dataset JSON
+        modality: image modality ('CT', 'mri', etc) found via dataset JSON
         cropping_threshold_met: whether the cropping threshold for alternate normalization is met
         dataset_stats: (mean, std) dataset statistics for dataset wide CT normalization
         clipping_percentiles: (.5 - 99.5) preconfigured clipping percentages for CT normalization
-        mask: Optional mask normalization within ROI
     Returns:
         NDArray: normalized image
     """
-    pass
+    if modality == "CT":
+        mean, std = dataset_stats
+        low, high = clipping_percentiles
+        if cropping_threshold_met:
+            # CT with cropping threshold met -> clip and nonzeros
+            image[image != 0] = np.clip(image[image != 0], low, high)
+            image[image != 0] = (image[image != 0] - mean) / std
+        else:
+            # CT without cropping threshold met -> clip only
+            image = np.clip(image, low, high)
+            image = (image - mean) / std
+    else:
+        if cropping_threshold_met:
+            # Non-CT with cropping threshold met -> nonzeros
+            nonzero = image[image != 0]
+            mean, std = nonzero.mean(), nonzero.std()
+            image[image != 0] = (image[image != 0] - mean) / std
+        else:
+            # Non-CT without cropping threshold met -> nothing special
+            mean, std = image.mean(), image.std()
+            image = (image - mean) / std
+    return image
 
 
 def compute_dataset_stats(
@@ -146,8 +173,8 @@ def compute_dataset_stats(
 
     """
     if not os.path.exists(dataset_dir):
-        raise(FileNotFoundError)
-    
+        raise (FileNotFoundError)
+
     image_path = dataset_dir / image_dir
     label_path = dataset_dir / mask_dir
 
@@ -159,11 +186,15 @@ def compute_dataset_stats(
 
     stats = {}
 
-    if modality == 'CT':
+    if modality == "CT":
         for image in images:
             if image not in labels:
-                raise(Exception(f'All files in image directory must have a corrisponding segmentation mask. {image} was not found in {label_path}'))
-        
+                raise (
+                    Exception(
+                        f"All files in image directory must have a corrisponding segmentation mask. {image} was not found in {label_path}"
+                    )
+                )
+
         count, total, squares = 0, 0, 0
         percentile_pool = []
         max_pool_len = 1_000_000
@@ -175,13 +206,13 @@ def compute_dataset_stats(
             img_np = sitk.GetArrayFromImage(img)
             mask_np = sitk.GetArrayFromImage(mask)
 
-            masked_voxels =  img_np[mask_np != 0]
+            masked_voxels = img_np[mask_np != 0]
 
             n = len(masked_voxels)
 
             count += n
             total += np.sum(masked_voxels)
-            squares += np.sum(masked_voxels ** 2)
+            squares += np.sum(masked_voxels**2)
 
             dims.append(img.GetSize())
             spacings.append(img.GetSpacing())
@@ -189,20 +220,22 @@ def compute_dataset_stats(
             if len(percentile_pool) < max_pool_len:
                 percentile_pool.extend(masked_voxels)
             else:
-                indices = np.random.randint(0, len(percentile_pool), size = min(n, len(percentile_pool)))
+                indices = np.random.randint(
+                    0, len(percentile_pool), size=min(n, len(percentile_pool))
+                )
                 for i, idx in enumerate(indices):
                     percentile_pool[idx] = masked_voxels[i]
 
-        mean = total/count
-        var = squares/count - mean ** 2
+        mean = total / count
+        var = squares / count - mean**2
         std = np.sqrt(var)
 
         pool = np.array(percentile_pool)
-        low = np.percentile(pool, .5)
+        low = np.percentile(pool, 0.5)
         high = np.percentile(pool, 99.5)
 
-        stats['stats'] = (mean, std)
-        stats['percentiles'] = (low, high)
+        stats["stats"] = (mean, std)
+        stats["percentiles"] = (low, high)
 
     else:
         for image in images:
@@ -211,12 +244,11 @@ def compute_dataset_stats(
             spacings.append(img.GetSpacing())
 
     dims = np.array(dims).T
-    stats['shape'] = np.median(dims, 1)
+    stats["shape"] = np.median(dims, 1)
 
     spacings = np.array(spacings).T
-    stats['spacing'] = np.median(spacings, 1)
+    stats["spacing"] = np.median(spacings, 1)
     return stats
-            
 
 
 def determine_cascade_necessity(median_shape: Tuple[float, float, float]) -> bool:

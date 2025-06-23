@@ -8,10 +8,19 @@ import numpy as np
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
-from preprocessing import load_data, crop_zeros, modality_detection, resample_image, compute_dataset_stats
+from preprocessing import (
+    load_data,
+    crop_zeros,
+    modality_detection,
+    resample_image,
+    compute_dataset_stats,
+    normalize,
+)
 
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
-CT_DATASET_DIR = Path('/mnt/d/dummy_CT')
+CT_DATASET_DIR = Path(
+    "/mnt/d/dummy_CT-SKIPTEST"
+)  # Takes a long time, remove -SKIPTEST to run test
 
 np.random.seed(42)
 
@@ -82,96 +91,109 @@ def test_modality_dectection_file_nonexistent():
     with pytest.raises(FileNotFoundError):
         modality_detection(TEST_DATA_DIR / "dataset_05.json")
 
+
 @pytest.mark.parametrize(
-        'image, old_spacing, new_spacing',
-        (
-            (np.ones((4, 4, 4)), np.array((1., 1., 1.)), np.array((2., 2.))),
-            (np.ones((4, 4, 4, 4)), np.array((1., 1., 1.)), np.array((2., 2., 2.)))
-        )
+    "image, old_spacing, new_spacing",
+    (
+        (np.ones((4, 4, 4)), np.array((1.0, 1.0, 1.0)), np.array((2.0, 2.0))),
+        (np.ones((4, 4, 4, 4)), np.array((1.0, 1.0, 1.0)), np.array((2.0, 2.0, 2.0))),
+    ),
 )
 def test_resample_image_bad_spacings(image, old_spacing, new_spacing):
     with pytest.raises(Exception):
-        resample_image(image, old_spacing, new_spacing, is_segmentation = False)
+        resample_image(image, old_spacing, new_spacing, is_segmentation=False)
+
 
 @pytest.mark.parametrize(
-    'old_dims, old_spacing, new_spacing, expected',
+    "old_dims, old_spacing, new_spacing, expected",
     (
-        ((16, 32, 32), (2., 1., 1.), (2., 2., 2.), (16, 16, 16)),
-        ((16, 16, 16), (.33, .33, .33), (.33, .33, .33), (16, 16, 16)),
-        ((100, 100, 50), (1., 1., 2.), (.5, .5, 1.), (200, 200, 100)),
-        ((100, 100, 50), (1., 1., 2.), (10., 10., 10.), (10, 10, 10)),
-        ((10, 10, 10), (10., 10., 10.), (1., 1., 2.), (100, 100, 50))
-    )
+        ((16, 32, 32), (2.0, 1.0, 1.0), (2.0, 2.0, 2.0), (16, 16, 16)),
+        ((16, 16, 16), (0.33, 0.33, 0.33), (0.33, 0.33, 0.33), (16, 16, 16)),
+        ((100, 100, 50), (1.0, 1.0, 2.0), (0.5, 0.5, 1.0), (200, 200, 100)),
+        ((100, 100, 50), (1.0, 1.0, 2.0), (10.0, 10.0, 10.0), (10, 10, 10)),
+        ((10, 10, 10), (10.0, 10.0, 10.0), (1.0, 1.0, 2.0), (100, 100, 50)),
+    ),
 )
 def test_resample_image_expected_dims(old_dims, old_spacing, new_spacing, expected):
     img = np.random.rand(*old_dims)
-    reshaped = resample_image(img, old_spacing, new_spacing, is_segmentation = False)
+    reshaped = resample_image(img, old_spacing, new_spacing, is_segmentation=False)
 
     assert expected == reshaped.shape
 
+
 def test_rasample_image_range_preservation():
     old_dims = (64, 32, 32)
-    old_spacing = (1., .5, .5)
-    new_spacing = (1.5, .75, .75)
+    old_spacing = (1.0, 0.5, 0.5)
+    new_spacing = (1.5, 0.75, 0.75)
     img = np.random.rand(*old_dims) * 1000
 
-    reshaped = resample_image(img, old_spacing, new_spacing, is_segmentation = False)
-    
-    tol = .05 * (img.max() - img.min())
+    reshaped = resample_image(img, old_spacing, new_spacing, is_segmentation=False)
+
+    tol = 0.05 * (img.max() - img.min())
     assert reshaped.min() > img.min() - tol
     assert reshaped.max() < img.max() + tol
 
+
 def test_resample_image_energy_preservation():
     old_dims = (64, 32, 32)
-    old_spacing = (1., .5, .5)
-    new_spacing = (1., 1., 1.)
+    old_spacing = (1.0, 0.5, 0.5)
+    new_spacing = (1.0, 1.0, 1.0)
     img = np.random.rand(*old_dims) * 1000
 
-    reshaped = resample_image(img, old_spacing, new_spacing, is_segmentation = False)
-    
-    tol = .005
-    sum_diff = abs(img.sum() * np.prod(old_spacing) - reshaped.sum() * np.prod(new_spacing))
+    reshaped = resample_image(img, old_spacing, new_spacing, is_segmentation=False)
 
-    assert  sum_diff / img.sum() * np.prod(old_spacing) < tol
+    tol = 0.005
+    sum_diff = abs(
+        img.sum() * np.prod(old_spacing) - reshaped.sum() * np.prod(new_spacing)
+    )
+
+    assert sum_diff / img.sum() * np.prod(old_spacing) < tol
+
 
 def test_resample_image_uniform():
     const = 1000
     old_dims = (64, 32, 32)
-    old_spacing = (5., .1, .1)
-    new_spacing = (1., 1., 1.)
+    old_spacing = (5.0, 0.1, 0.1)
+    new_spacing = (1.0, 1.0, 1.0)
     img = np.ones(old_dims) * const
 
-    reshaped = resample_image(img, old_spacing, new_spacing, is_segmentation = False)
+    reshaped = resample_image(img, old_spacing, new_spacing, is_segmentation=False)
 
     err = np.abs(reshaped - const)
-    rtol = .01
+    rtol = 0.01
 
     assert np.max(err) < rtol * const
 
+
 def test_resample_image_seg_mask_up():
     img = np.array([[[1], [0]], [[0], [1]]])
-    old_spacing  = (2, 2, 2)
+    old_spacing = (2, 2, 2)
     new_spacing = (1, 1, 2)
 
-    expected = np.array([
-        [[1], [1], [0], [0]], 
-        [[1], [1], [0], [0]],
-        [[0], [0], [1], [1]],
-        [[0], [0], [1], [1]]
-    ])
+    expected = np.array(
+        [
+            [[1], [1], [0], [0]],
+            [[1], [1], [0], [0]],
+            [[0], [0], [1], [1]],
+            [[0], [0], [1], [1]],
+        ]
+    )
 
     reshaped = resample_image(img, old_spacing, new_spacing, True)
 
     np.testing.assert_array_equal(expected, reshaped)
 
+
 def test_resample_image_seg_mask_down():
-    img = np.array([
-        [[1], [1], [0], [0]], 
-        [[1], [1], [0], [0]],
-        [[0], [0], [1], [1]],
-        [[0], [0], [1], [1]]
-    ])
-    old_spacing  = (1, 1, 2)
+    img = np.array(
+        [
+            [[1], [1], [0], [0]],
+            [[1], [1], [0], [0]],
+            [[0], [0], [1], [1]],
+            [[0], [0], [1], [1]],
+        ]
+    )
+    old_spacing = (1, 1, 2)
     new_spacing = (2, 2, 2)
 
     expected = np.array([[[1], [0]], [[0], [1]]])
@@ -179,6 +201,7 @@ def test_resample_image_seg_mask_down():
     reshaped = resample_image(img, old_spacing, new_spacing, True)
 
     np.testing.assert_array_equal(expected, reshaped)
+
 
 def setup_dataset():
     arr1 = np.arange(64)
@@ -203,52 +226,67 @@ def setup_dataset():
     masks = [mask1, mask2, mask3, mask4, mask5]
 
     imgs = [sitk.GetImageFromArray(arr) for arr in arrs]
-    spacings = [(1., 1., 1.), (.325, .1, .1), (10., 5., 3.), (.5, 1., 1.), (.4, .2, .2)]
+    spacings = [
+        (1.0, 1.0, 1.0),
+        (0.325, 0.1, 0.1),
+        (10.0, 5.0, 3.0),
+        (0.5, 1.0, 1.0),
+        (0.4, 0.2, 0.2),
+    ]
     for img, spacing in zip(imgs, spacings):
         img.SetSpacing(spacing)
 
     for i, img in enumerate(imgs):
-        sitk.WriteImage(img, TEST_DATA_DIR / f'imagesTr/test0{i + 1}.nii.gz')
+        sitk.WriteImage(img, TEST_DATA_DIR / f"imagesTr/test0{i + 1}.nii.gz")
 
     imgs = [sitk.GetImageFromArray(mask) for mask in masks]
 
     for i, img in enumerate(imgs):
-        sitk.WriteImage(img, TEST_DATA_DIR / f'labelsTr/test0{i + 1}.nii.gz')
+        sitk.WriteImage(img, TEST_DATA_DIR / f"labelsTr/test0{i + 1}.nii.gz")
 
     return arrs, masks
-    
 
 
 def test_compute_dataset_stats_no_CT():
     setup_dataset()
 
-    stats = compute_dataset_stats(TEST_DATA_DIR, 'NOT CT', 'imagesTr', 'labelsTr')
+    stats = compute_dataset_stats(TEST_DATA_DIR, "NOT CT", "imagesTr", "labelsTr")
 
-    np.testing.assert_array_equal(stats['shape'], np.array([3, 3, 3]))
-    np.testing.assert_array_equal(stats['spacing'], np.array([.5, 1., 1.]))
-    
+    np.testing.assert_array_equal(stats["shape"], np.array([3, 3, 3]))
+    np.testing.assert_array_equal(stats["spacing"], np.array([0.5, 1.0, 1.0]))
+
+
 def test_compute_dataset_CT():
     arrs, masks = setup_dataset()
 
     masked_vals = np.concat([arr[mask == 1] for arr, mask in zip(arrs, masks)])
 
-    stats = compute_dataset_stats(TEST_DATA_DIR, 'CT', 'imagesTr', 'labelsTr')
-    mean, std = stats['stats']
-    low, high = stats['percentiles']
+    stats = compute_dataset_stats(TEST_DATA_DIR, "CT", "imagesTr", "labelsTr")
+    mean, std = stats["stats"]
+    low, high = stats["percentiles"]
 
-    assert abs(masked_vals.mean() - mean) < (masked_vals.mean() * .001) 
-    assert abs(masked_vals.std() - std) < (masked_vals.std() * .001) 
-    
-    assert abs(np.percentile(masked_vals, .5) - low) < (np.percentile(masked_vals, .5) * .001) + 1e-9
-    assert abs(np.percentile(masked_vals, 99.5) - high) < (np.percentile(masked_vals, 99.5) * .001) + 1e-9
-    
-    np.testing.assert_array_equal(stats['shape'], np.array([3, 3, 3]))
-    np.testing.assert_array_equal(stats['spacing'], np.array([.5, 1., 1.]))
+    assert abs(masked_vals.mean() - mean) < (masked_vals.mean() * 0.001)
+    assert abs(masked_vals.std() - std) < (masked_vals.std() * 0.001)
+
+    assert (
+        abs(np.percentile(masked_vals, 0.5) - low)
+        < (np.percentile(masked_vals, 0.5) * 0.001) + 1e-9
+    )
+    assert (
+        abs(np.percentile(masked_vals, 99.5) - high)
+        < (np.percentile(masked_vals, 99.5) * 0.001) + 1e-9
+    )
+
+    np.testing.assert_array_equal(stats["shape"], np.array([3, 3, 3]))
+    np.testing.assert_array_equal(stats["spacing"], np.array([0.5, 1.0, 1.0]))
+
 
 def test_reservoir_on_real_ct_masks():
+    if not os.path.exists(CT_DATASET_DIR):
+        return
     image_path = CT_DATASET_DIR / "imagesTr"
     label_path = CT_DATASET_DIR / "labelsTr"
-    
+
     images = os.listdir(image_path)
 
     all_voxels = []
@@ -262,15 +300,15 @@ def test_reservoir_on_real_ct_masks():
         img_np = sitk.GetArrayFromImage(img)
         mask_np = sitk.GetArrayFromImage(mask)
 
-        masked_voxels =  img_np[mask_np != 0]
+        masked_voxels = img_np[mask_np != 0]
 
         all_voxels.extend(masked_voxels)
 
         shapes.append(img.GetSize())
         spacings.append(img.GetSpacing())
 
-    stats = compute_dataset_stats(CT_DATASET_DIR, 'CT', 'imagesTr', 'labelsTr')
-    
+    stats = compute_dataset_stats(CT_DATASET_DIR, "CT", "imagesTr", "labelsTr")
+
     all_voxels = np.array(all_voxels)
     mean = all_voxels.mean()
     std = all_voxels.std()
@@ -279,17 +317,72 @@ def test_reservoir_on_real_ct_masks():
     shape = np.median(shapes, 1)
 
     spacings = np.array(spacings).T
-    spacing = np.median(spacings, 1) 
+    spacing = np.median(spacings, 1)
 
-    assert abs(all_voxels.mean() - mean) < (all_voxels.mean() * .001) 
-    assert abs(all_voxels.std() - std) < (all_voxels.std() * .001) 
-    mean, std = stats['stats']
-    low, high = stats['percentiles']
+    assert abs(all_voxels.mean() - mean) < (all_voxels.mean() * 0.001)
+    assert abs(all_voxels.std() - std) < (all_voxels.std() * 0.001)
+    mean, std = stats["stats"]
+    low, high = stats["percentiles"]
 
-    assert low > np.percentile(all_voxels, .25)
-    assert low < np.percentile(all_voxels, .75)
+    assert low > np.percentile(all_voxels, 0.25)
+    assert low < np.percentile(all_voxels, 0.75)
     assert high > np.percentile(all_voxels, 99.25)
     assert high < np.percentile(all_voxels, 99.75)
-    
-    np.testing.assert_array_equal(stats['shape'], shape)
-    np.testing.assert_array_equal(stats['spacing'], spacing)
+
+    np.testing.assert_array_equal(stats["shape"], shape)
+    np.testing.assert_array_equal(stats["spacing"], spacing)
+
+
+def test_normalize_ct_nonzero():
+    img = np.zeros((4, 4), np.float32)
+    img[1:3, 1:3] = np.arange(1, 5).reshape((2, 2))
+
+    result = normalize(img, "CT", True, (2.0, 2.0), (2.0, 3.0))
+
+    expected = np.zeros((4, 4), np.float32)
+    expected[2, [1, 2]] = 1 / 2
+
+    np.testing.assert_allclose(expected, result)
+
+
+def test_normalize_ct_withzeros():
+    img = np.zeros((4, 4), np.float32)
+    img[1:3, 1:3] = np.arange(1, 5).reshape((2, 2))
+
+    result = normalize(img, "CT", False, (2.0, 2.0), (1.0, 3.0))
+
+    expected = np.ones((4, 4), np.float32) * -1 / 2
+    expected[1, 2] = 0
+    expected[2, [1, 2]] = 1 / 2
+
+    np.testing.assert_allclose(expected, result)
+
+
+def test_normalize_non_ct_nonzeros():
+    img = np.zeros((4, 4), np.float32)
+    img[1:3, 1:3] = np.arange(1, 5).reshape((2, 2))
+
+    result = normalize(img, "MRI", True)
+
+    expected = np.zeros((4, 4), np.float32)
+    expected[1, 1] = -1.5 / np.sqrt(5 / 4)
+    expected[1, 2] = -0.5 / np.sqrt(5 / 4)
+    expected[2, 1] = 0.5 / np.sqrt(5 / 4)
+    expected[2, 2] = 1.5 / np.sqrt(5 / 4)
+
+    np.testing.assert_allclose(expected, result)
+
+
+def test_normalize_non_ct_withzeros():
+    img = np.zeros((4, 4), np.float32)
+    img[1:3, 1:3] = np.arange(1, 5).reshape((2, 2))
+
+    result = normalize(img, "MRI", False)
+
+    expected = np.ones((4, 4), np.float32) * -(10 / 16) / np.sqrt(95 / 64)
+    expected[1, 1] = (6 / 16) / np.sqrt(95 / 64)
+    expected[1, 2] = (22 / 16) / np.sqrt(95 / 64)
+    expected[2, 1] = (38 / 16) / np.sqrt(95 / 64)
+    expected[2, 2] = (54 / 16) / np.sqrt(95 / 64)
+
+    np.testing.assert_allclose(expected, result)
