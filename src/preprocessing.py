@@ -92,8 +92,6 @@ def resample_image(
         reshaped = resize(image, new_dims, 3, mode = 'edge', anti_aliasing=False)
     return reshaped
 
-
-
 def normalize(
     image: NDArray,
     modality: str,
@@ -104,7 +102,7 @@ def normalize(
 ) -> NDArray:
     """Normalizes images using nnU-net normalization strategy.
 
-    For CT images: values are clipped using [.5 - 99.5]. percentile values of non-background values,
+    For CT images: values are clipped using [.5 - 99.5] percentile values of non-background values,
     followed by z-score normilization using dataset wide statistics. Dataset stats cannot be None when
     modality is 'ct'
 
@@ -126,7 +124,7 @@ def normalize(
 
 
 def compute_dataset_stats(
-    dataset_dir: str, modality: str, image_suffix: str, mask_suffix: str
+    dataset_dir: Path, modality: str, image_dir: str, mask_dir: str
 ) -> Dict[str, Any]:
     """Calculate key statistics from datasets.
     From CT datasets: mean, std, .5, 99.5 values from foreground classes. Median shape and voxel spacing.
@@ -145,7 +143,47 @@ def compute_dataset_stats(
                                         'spacing':(float, float, float)
 
     """
-    pass
+    if not os.path.exists(dataset_dir):
+        raise(FileNotFoundError)
+    
+    image_path = dataset_dir / image_dir
+    label_path = dataset_dir / mask_dir
+
+    images = os.listdir(image_path)
+    labels = os.listdir(label_path)
+
+    dims = []
+    spacings = []
+
+    stats = {}
+
+    if modality == 'CT':
+        for image in images:
+            if image not in labels:
+                raise(Exception(f'All files in image directory must have a corrisponding segmentation mask. {image} was not found in {label_path}'))
+        
+        for image in images:
+            img = sitk.ReadImage(image_path / image)
+            mask = sitk.ReadImage(label_path / image)
+
+            img_np = sitk.GetArrayFromImage(img)
+            mask_np = sitk.GetArrayFromImage(mask)
+
+            dims.append(img.GetSize())
+            spacings.append(img.GetSpacing())
+    else:
+        for image in images:
+            img = sitk.ReadImage(image_path / image)
+            dims.append(img.GetSize())
+            spacings.append(img.GetSpacing())
+
+    dims = np.array(dims).T
+    stats['shape'] = np.median(dims, 1)
+
+    spacings = np.array(spacings).T
+    stats['spacing'] = np.median(spacings, 1)
+    return stats
+            
 
 
 def determine_cascade_necessity(median_shape: Tuple[float, float, float]) -> bool:
