@@ -66,7 +66,24 @@ def determine_pooling_operations(
     Returns:
         Tuple[int, ...]: pooling operators per axis
     """
-    pass
+    dims = len(median_image_shape)
+
+    if dims == 2:
+        pools = tuple(
+            [
+                int(min(np.log2(x) - 2, MAX_POOLING_LAYERS_2D))
+                for x in median_image_shape
+            ]
+        )
+    else:
+        pools = tuple(
+            [
+                int(min(np.log2(x) - 2, MAX_POOLING_LAYERS_2D))
+                for x in median_image_shape
+            ]
+        )
+
+    return pools
 
 
 def determine_channels_per_layer(pooling_operations: Tuple[int, ...]) -> List[int]:

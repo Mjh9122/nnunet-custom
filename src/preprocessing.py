@@ -289,17 +289,16 @@ def lower_resolution(
     current_size = np.array(median_shape)
     current_spacing = np.array(voxel_spacing)
     max_voxels = np.array(MAX_3D_PATCH_SIZE).prod()
-    
+
     total_voxels = current_size.prod()
 
     while total_voxels > 4 * max_voxels:
         high_res_axis = current_spacing == min(current_spacing)
         current_spacing[high_res_axis] *= 2
-        current_size[high_res_axis]//=2
+        current_size[high_res_axis] //= 2
         total_voxels = current_size.prod()
-    
+
     return current_spacing
-    
 
 
 def modality_detection(json_path: Path) -> str:

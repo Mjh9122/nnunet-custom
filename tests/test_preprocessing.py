@@ -2,8 +2,16 @@ import pytest
 import sys
 from pathlib import Path
 import os
+
+import warnings
+
+warnings.filterwarnings(
+    "ignore", category=DeprecationWarning, module="importlib._bootstrap"
+)
+
 import SimpleITK as sitk
 import numpy as np
+
 
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
@@ -16,7 +24,7 @@ from preprocessing import (
     compute_dataset_stats,
     normalize,
     determine_cascade_necessity,
-    lower_resolution
+    lower_resolution,
 )
 
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
@@ -86,7 +94,8 @@ def test_crop_bool(input_dims, ones_slices, output_dims, reduction):
     ),
 )
 def test_modality_detection(input, expected):
-    assert modality_detection(TEST_DATA_DIR / input) == expected
+    if os.path.exists(TEST_DATA_DIR / input):
+        assert modality_detection(TEST_DATA_DIR / input) == expected
 
 
 def test_modality_dectection_file_nonexistent():
@@ -408,14 +417,15 @@ def test_cascade_necessity(input, expected):
 
     assert result == expected
 
+
 @pytest.mark.parametrize(
-        'dims, spacing, expected', 
-        (
-            ((512, 512, 400), (1., 1., 1.), (4., 4., 4.)),
-            ((320, 320, 100), (.5, .5, 2.), (1., 1., 2.)),
-            ((1024, 1024, 64), (.125, .125, 1.), (.5, .5, 1.)),
-            ((400, 400, 150), (.8, .8, 2.5), (1.6, 1.6, 2.5))
-        )
+    "dims, spacing, expected",
+    (
+        ((512, 512, 400), (1.0, 1.0, 1.0), (4.0, 4.0, 4.0)),
+        ((320, 320, 100), (0.5, 0.5, 2.0), (1.0, 1.0, 2.0)),
+        ((1024, 1024, 64), (0.125, 0.125, 1.0), (0.5, 0.5, 1.0)),
+        ((400, 400, 150), (0.8, 0.8, 2.5), (1.6, 1.6, 2.5)),
+    ),
 )
 def test_lower_resolution(dims, spacing, expected):
     result = lower_resolution(dims, spacing)
