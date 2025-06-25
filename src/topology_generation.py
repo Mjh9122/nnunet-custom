@@ -8,7 +8,9 @@ MIN_3D_BATCH_SIZE = 2
 MAX_POOLING_LAYERS_2D = 6
 MAX_POOLING_LAYERS_3D = 5
 MAX_SINGLE_BATCH_VOXEL_PERCENTAGE = 0.05
-MAX_CHANNELS = 30
+INITIAL_CHANNELS = 32
+MAX_3D_CHANNELS = 256
+MAX_2D_CHANNELS = 512
 STOPPING_SIZE = 8
 
 
@@ -86,17 +88,25 @@ def determine_pooling_operations(
     return pools
 
 
-def determine_channels_per_layer(pooling_operations: Tuple[int, ...]) -> List[int]:
+def determine_channels_per_layer(pooling_operations: Tuple[int, ...]) -> Tuple[int, ...]:
     """Determines number of channels per layer
-    Number of channels double each layer starting at 1 with a maximum of 30 channels.
+    Number of channels double each layer starting at the number of initial channels with a maximum of 30 channels.
 
     Args:
+        initial_channels (int): Number of channels in the original image
         pooling_operations (Tuple[int, ...]): Pooling operations per axis
 
     Returns:
-        List[int]: list of channels per level
+        Tuple[int, ...]: list of channels per level
     """
-    pass
+    num_dims = len(pooling_operations)
+
+    if num_dims == 2:
+        max_channels = MAX_2D_CHANNELS
+    else:
+        max_channels = MAX_3D_CHANNELS
+
+    return tuple([min(max_channels, INITIAL_CHANNELS * 2 ** i) for i in range(max(pooling_operations))])
 
 
 def generate_network_topologies(

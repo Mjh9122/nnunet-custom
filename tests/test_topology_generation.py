@@ -36,3 +36,19 @@ from topology_generation import (
 def test_determine_pooling_ops(dims, expected):
     result = determine_pooling_operations(dims)
     assert result == expected
+
+@pytest.mark.parametrize(
+    "pooling_ops, expected", 
+    (
+        ((3, 3, 3), (32, 64, 128)),
+        ((3, 3), (32, 64, 128)),
+        ((5, 5, 5), (32, 64, 128, 256, 256)),
+        ((5, 5), (32, 64, 128, 256, 512)), 
+        ((4, 5, 5), (32, 64, 128, 256, 256)),
+        ((6, 6), (32, 64, 128, 256, 512, 512)),
+        ((2, 5, 5), (32, 64, 128, 256, 256))
+    )
+)
+def test_channels_per_layer(pooling_ops, expected):
+    result = determine_channels_per_layer(pooling_ops)
+    assert result == expected
