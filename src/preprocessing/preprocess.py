@@ -3,8 +3,9 @@ import numpy.typing as npt
 import SimpleITK as sitk
 import json
 import os
+import pickle as pkl
 
-from skimage.transform import resize
+from .crop import crop_zeros
 from tqdm import tqdm
 from pathlib import Path
 from typing import Union, Optional, Dict, List, Tuple, Any
@@ -17,143 +18,65 @@ MAX_3D_PATCH_SIZE = (128, 128, 128)
 MIN_3D_BATCH_SIZE = 2
 CROPPING_NORMALIZATION_THRESHOLD = 0.25
 
-
-def load_data(filepath: Path) -> NDArray:
-    """Loads data from image file into numpy array for preprocessing
-
-    Args:
-        filepath (Path): filepath to image
-
-    Returns:
-        NDArray: image
-    """
-    if not os.path.exists(filepath):
-        raise (FileNotFoundError)
-
-    img = sitk.ReadImage(filepath)
-    img_arr = sitk.GetArrayFromImage(img)
-
-    return img_arr
-
-
-def crop_zeros(image: NDArray) -> Tuple[NDArray, bool]:
-    """Creates bounding box of nonzero values in an image. Also returns whether the total # of voxels
-    is reduced by more than 25%, triggering different normalization strategy later on. This function borrows
-    heavily from the batchgenerators example here: https://github.com/MIC-DKFZ/batchgenerators/blob/master/batchgenerators/examples/brats2017/brats2017_preprocessing.py
+def crop_dataset(dataset_dir: Path, output_dir:Path) -> Path:
+    """Crops all images and labels in dataset, placing them in a temp folder in the output dir
 
     Args:
-        image (NDArray): original image
-
-    Returns:
-        Tuple[NDArray, bool]: cropped image, reduction > 25%
+        dataset_dir (Path): Dataset directory should have dataset.json, imagesTr, labelsTr
+        output_dir (Path): Directory to place completed preprocessed images
     """
-    # Find indeces of all nonzero values
-    nonzero = np.array(np.where(image != 0))
-    # Min and max nonzeros for each axis, transpose to get min/max pairs
-    nonzero = np.array([np.min(nonzero, 1), np.max(nonzero, 1)]).T
+    image_path = dataset_dir / 'imagesTr'
+    label_path = dataset_dir / 'labelsTr'
 
-    slices = tuple(slice(a, b + 1) for a, b in nonzero)
-    cropped = image[slices]
+    images = os.listdir(image_path)
 
-    reduction_ratio = cropped.size / image.size
+    cropped_path = output_dir / 'crops'
+    cropped_images_path = cropped_path / 'imagesTr'
+    cropped_labels_path = cropped_path / 'labelsTr'
 
-    return cropped, reduction_ratio < 0.75
+    if not os.path.exists(cropped_path):
+        os.mkdir(cropped_path)
+    if not os.path.exists(cropped_images_path):
+        os.mkdir(cropped_images_path)
+    if not os.path.exists(cropped_labels_path):
+        os.mkdir(cropped_labels_path)
 
+    for image in tqdm(images):
+        img = sitk.ReadImage(image_path / image)
+        mask = sitk.ReadImage(label_path / image)
 
-def resample_image(
-    image: NDArray,
-    old_spacing: Tuple[float, float, float],
-    new_spacing: Tuple[float, float, float],
-    is_segmentation: bool,
-) -> NDArray:
-    """Resamples image to new voxel spacing using cubic spline interpolation or nearest
-    neighbor (cublic spline order 0) based on whether an image or segmentation mask is passed in
+        spacing = img.GetSpacing()
+        img_np = sitk.GetArrayFromImage(img)
+        mask_np = sitk.GetArrayFromImage(mask)
 
-    Args:
-        image (NDArray): original image
-        old_spacing (Tuple[float, float, float]): original voxel spacing (X, Y, Z)
-        new_spacing (Tuple[float, float, float]): new voxel spacing (X, Y, Z)
-        is_segmentation: True if segmentation map is inputed
+        pre_crop_size = img_np.shape
 
-    Returns:
-        NDArray: resampled image
-    """
-    if len(old_spacing) != len(new_spacing):
-        raise (Exception("New and old spacings must have same length"))
+        img_crop_np, mask_crop_np = crop_zeros(img_np, mask_np)
 
-    old_dims = np.array(image.shape)
+        post_crop_size = img_crop_np.shape
 
-    if len(old_dims) != len(new_spacing):
-        raise (Exception("New spacing and image shape must have same length"))
+        img_crop = sitk.GetImageFromArray(img_crop_np)
+        sitk.WriteImage(img_crop, cropped_images_path / image)
 
-    new_dims = np.array(
-        [
-            int(dim * old / new)
-            for dim, old, new in zip(old_dims, old_spacing, new_spacing)
-        ]
-    )
+        mask_crop = sitk.GetImageFromArray(mask_crop_np)
+        sitk.WriteImage(mask_crop, cropped_labels_path / image)
 
-    if is_segmentation:
-        reshaped = np.round(
-            resize(image, new_dims, 0, mode="edge", anti_aliasing=False)
-        ).astype(int)
-    else:
-        reshaped = resize(image, new_dims, 3, mode="edge", anti_aliasing=False)
-    return reshaped
+        stats = {
+            'pre_crop_shape' : pre_crop_size,
+            'post_crop_shape' : post_crop_size,
+            'spacing' : spacing
+        }
 
+        stats_pkl  = image.split('.')[0] + ".pkl"
+        with open(cropped_images_path / stats_pkl, 'wb') as file:
+            pkl.dump(stats, file)
 
-def normalize(
-    image: NDArray,
-    modality: str,
-    cropping_threshold_met: bool,
-    dataset_stats: Optional[Tuple[float, float]] = None,
-    clipping_percentiles: Optional[Tuple[float, float]] = (0.5, 99.5),
-) -> NDArray:
-    """Normalizes images using nnU-net normalization strategy.
+    return cropped_path
 
-    For CT images: values are clipped using [.5 - 99.5] percentile values of non-background values,
-    followed by z-score normilization using dataset wide statistics. Dataset stats cannot be None when
-    modality is 'CT'
-
-    For other modalities: z-score normilization applied to each sample
-
-    If cropping reduced number of voxels by > 25% then only nonzero values are used for normalization
-
-    Args:
-        image: original image
-        modality: image modality ('CT', 'mri', etc) found via dataset JSON
-        cropping_threshold_met: whether the cropping threshold for alternate normalization is met
-        dataset_stats: (mean, std) dataset statistics for dataset wide CT normalization
-        clipping_percentiles: (.5 - 99.5) preconfigured clipping percentages for CT normalization
-    Returns:
-        NDArray: normalized image
-    """
-    if modality == "CT":
-        mean, std = dataset_stats
-        low, high = clipping_percentiles
-        if cropping_threshold_met:
-            # CT with cropping threshold met -> clip and nonzeros
-            image[image != 0] = np.clip(image[image != 0], low, high)
-            image[image != 0] = (image[image != 0] - mean) / std
-        else:
-            # CT without cropping threshold met -> clip only
-            image = np.clip(image, low, high)
-            image = (image - mean) / std
-    else:
-        if cropping_threshold_met:
-            # Non-CT with cropping threshold met -> nonzeros
-            nonzero = image[image != 0]
-            mean, std = nonzero.mean(), nonzero.std()
-            image[image != 0] = (image[image != 0] - mean) / std
-        else:
-            # Non-CT without cropping threshold met -> nothing special
-            mean, std = image.mean(), image.std()
-            image = (image - mean) / std
-    return image
 
 
 def compute_dataset_stats(
-    dataset_dir: Path, modality: str, image_dir: str, mask_dir: str
+    dataset_dir: Path, modality: str
 ) -> Dict[str, Any]:
     """Calculate key statistics from datasets.
     From CT datasets: mean, std, .5, 99.5 values from foreground classes. Median shape and voxel spacing.
@@ -162,8 +85,6 @@ def compute_dataset_stats(
     Args:
         dataset_dir: path to dataset images
         modality: modality of images
-        image_suffix: suffix to identify images in dir
-        mask_suffix: suffix to identify masks in dir
 
     Returns:
         Dict[str, Tuple[float, float]]: 'percentiles':(low:float, high:float),
@@ -175,8 +96,8 @@ def compute_dataset_stats(
     if not os.path.exists(dataset_dir):
         raise (FileNotFoundError)
 
-    image_path = dataset_dir / image_dir
-    label_path = dataset_dir / mask_dir
+    image_path = dataset_dir / 'imagesTr'
+    label_path = dataset_dir / 'labelsTr'
 
     images = os.listdir(image_path)
     labels = os.listdir(label_path)
@@ -185,6 +106,7 @@ def compute_dataset_stats(
     spacings = []
 
     stats = {}
+    stats['pre_crop_voxels'] = 0
 
     if modality == "CT":
         for image in images:
@@ -225,6 +147,8 @@ def compute_dataset_stats(
                 )
                 for i, idx in enumerate(indices):
                     percentile_pool[idx] = masked_voxels[i]
+            
+            stats['pre_crop_voxels'] += np.prod(img_np.shape)
 
         mean = total / count
         var = squares / count - mean**2
@@ -236,12 +160,14 @@ def compute_dataset_stats(
 
         stats["stats"] = (mean, std)
         stats["percentiles"] = (low, high)
+        
 
     else:
         for image in images:
             img = sitk.ReadImage(image_path / image)
             dims.append(img.GetSize())
             spacings.append(img.GetSpacing())
+            stats['pre_crop_voxels'] += np.prod(img.GetSize())
 
     dims = np.array(dims).T
     stats["shape"] = np.median(dims, 1)
@@ -321,3 +247,42 @@ def modality_detection(json_path: Path) -> str:
             return "CT"
         else:
             return "Not CT"
+
+
+def preprocess_dataset(dataset_dir: Path, output_dir: Path) -> Dict[Any, Any]:
+    """Preprocesses an entire dataset. preprocessed images are placed in the output directory
+    and dataset statistics are returned for use in downstream tasks
+
+    Args: 
+        dataset_dir (Path): Path to dataset directory should contain a dataset.json file, imagesTr, and labelsTr dirs
+        output_dir (Path): Path to output directory. Finished numpy arrays are stored alongside metadata.
+
+    Returns:
+        Dict
+    """
+
+    if not os.path.exists(dataset_dir):
+        raise(FileNotFoundError)
+    
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+
+    if not os.path.isdir(output_dir):
+        raise(Exception('Output directory is not a directory'))
+    
+    stats = {}
+
+    # 1. Determine modality
+    modality = modality_detection(dataset_dir / 'dataset.json')
+    stats['modality'] = modality
+
+    # 2. Crop data 
+    cropped_dir = crop_dataset(dataset_dir)
+
+    # 3. Normalize each image
+    # 4. Resample to median voxel spacing
+    # 5. Determine Cascade necessity
+    # 6. Generate low resolution image if needed
+
+
+    return stats

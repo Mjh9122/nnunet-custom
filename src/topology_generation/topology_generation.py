@@ -15,7 +15,9 @@ STOPPING_SIZE = 8
 
 
 def determine_2d_patch_batch(
-    image_shape: Tuple[int, int, int], total_voxels: int
+    image_shape: Tuple[int, int, int], 
+    image_spacing: Tuple[float, float, float],
+    total_voxels: int
 ) -> Tuple[Tuple[int, int], int]:
     """Determines an appropriate patch and batch size for the 2d Unet.
        Starts with (256, 256) and 42 and adjusts based on gpu memory available and maximum voxels per step
@@ -27,13 +29,13 @@ def determine_2d_patch_batch(
 
     Args:
         image_shape (Tuple[int, int, int]): dimmensions of incoming image
+        image_spacing (Tuple[float, float, float]): spacing of incoming image
         total_voxels (int): total number of voxels in dataset
 
     Returns:
         Tuple[Tuple[int, int], int]: (patch size, batch size)
     """
-    pass
-
+    aspect_ratio = 1/np.array(image_spacing)
 
 def determine_3d_patch_batch(
     image_shape: Tuple[int, int, int], total_voxels: int
