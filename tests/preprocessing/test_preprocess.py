@@ -23,7 +23,8 @@ from preprocessing.preprocess import (
     determine_cascade_necessity,
     lower_resolution,
     preprocess_dataset,
-    crop_dataset
+    normalize_dataset,
+    crop_dataset,
 )
 
 TEST_DATA_DIR = Path(__file__).parent.parent / "test_data"
@@ -52,24 +53,25 @@ def test_modality_dectection_file_nonexistent():
     with pytest.raises(FileNotFoundError):
         modality_detection(TEST_DATA_DIR / "dataset_05.json")
 
+
 def setup_dataset():
-    arr1 = np.arange(64)
-    arr1 = arr1.reshape((4, 4, 4)).astype(np.float32)
+    arr1 = np.zeros((10, 10, 10), np.float32)
+    arr1[3:7, 3:7, 3:7] = np.arange(64).reshape(4, 4, 4)
     arr2 = np.ones((3, 3, 3), np.float32) * 10
     arr3 = np.zeros((10, 10, 10), np.float32)
-    arr3[2:8, 2:8, 2:8] = 5 
-    arr4 = np.arange(30)
-    arr4 = arr4.reshape((2, 3, 5)).astype(np.float32)
+    arr3[2:8, 2:8, 2:8] = 5
+    arr4 = np.arange(75)
+    arr4 = arr4.reshape((5, 3, 5)).astype(np.float32)
     arr5 = np.arange(50)
     arr5 = arr5.reshape((5, 5, 2)).astype(np.float32)
     arrs = [arr1, arr2, arr3, arr4, arr5]
 
-    mask1 = np.zeros((4, 4, 4))
-    mask1[1:3, 1:3, 1:3] = 1
+    mask1 = np.zeros((10, 10, 10))
+    mask1[3:8, 4:7, 4:7] = 1
     mask2 = np.ones((3, 3, 3))
     mask3 = np.zeros((10, 10, 10))
     mask3[0, 0, 1] = 1
-    mask4 = np.zeros((2, 3, 5))
+    mask4 = np.zeros((5, 3, 5))
     mask4[1, :, :] = 1
     mask5 = np.zeros((5, 5, 2))
     mask5[:, :, 0] = 1
@@ -100,18 +102,26 @@ def setup_dataset():
 def test_compute_dataset_stats_no_CT():
     setup_dataset()
 
-    stats = compute_dataset_stats(TEST_DATA_DIR, "NOT CT")
+    stats = compute_dataset_stats(TEST_DATA_DIR / "crops", "NOT CT")
 
-    np.testing.assert_array_equal(stats["shape"], np.array([4, 4, 4]))
+    np.testing.assert_array_equal(stats["pre_crop_shape"], np.array([5, 5, 5]))
+    np.testing.assert_array_equal(stats["post_crop_shape"], np.array([5, 4, 4]))
     np.testing.assert_array_equal(stats["spacing"], np.array([0.5, 1.0, 1.0]))
 
 
 def test_compute_dataset_CT():
     arrs, masks = setup_dataset()
 
-    masked_vals = np.concat([arr[mask == 1] for arr, mask in zip(arrs, masks)])
+    # Manually crop zeros
+    arrs[0] = arrs[0][3:7, 3:7, 3:7]
+    masks[0] = masks[0][3:7, 3:7, 3:7]
+    arrs[2] = arrs[2][2:8, 2:8, 2:8]
+    masks[2] = masks[2][2:8, 2:8, 2:8]
 
-    stats = compute_dataset_stats(TEST_DATA_DIR, "CT")
+    # only take values in foreground
+    masked_vals = np.concat([arr[mask != 0] for arr, mask in zip(arrs, masks)])
+
+    stats = compute_dataset_stats(TEST_DATA_DIR / "crops", "CT")
     mean, std = stats["stats"]
     low, high = stats["percentiles"]
 
@@ -127,7 +137,8 @@ def test_compute_dataset_CT():
         < (np.percentile(masked_vals, 99.5) * 0.001) + 1e-9
     )
 
-    np.testing.assert_array_equal(stats["shape"], np.array([4, 4, 4]))
+    np.testing.assert_array_equal(stats["pre_crop_shape"], np.array([5, 5, 5]))
+    np.testing.assert_array_equal(stats["post_crop_shape"], np.array([5, 4, 4]))
     np.testing.assert_array_equal(stats["spacing"], np.array([0.5, 1.0, 1.0]))
 
 
@@ -179,8 +190,9 @@ def test_reservoir_on_real_ct_masks():
     assert high > np.percentile(all_voxels, 99.25)
     assert high < np.percentile(all_voxels, 99.75)
 
-    np.testing.assert_array_equal(stats["shape"], shape)
+    np.testing.assert_array_equal(stats["precrop_shape"], shape)
     np.testing.assert_array_equal(stats["spacing"], spacing)
+
 
 @pytest.mark.parametrize(
     "input, expected",
@@ -214,15 +226,17 @@ def test_lower_resolution(dims, spacing, expected):
     result = lower_resolution(dims, spacing)
     np.testing.assert_allclose(np.array(result), np.array(expected))
 
+
 def test_preprocessing():
     pass
+
 
 def test_crop_dataset():
     setup_dataset()
 
     cropped_dir = crop_dataset(TEST_DATA_DIR, TEST_DATA_DIR)
-    cropped_imgs_dir = cropped_dir / 'imagesTr'
-    cropped_labels_dir = cropped_dir / 'labelsTr'
+    cropped_imgs_dir = cropped_dir / "imagesTr"
+    cropped_labels_dir = cropped_dir / "labelsTr"
 
     original_shapes = []
     cropped_shapes = []
@@ -230,16 +244,30 @@ def test_crop_dataset():
     images = []
 
     for f in os.listdir(cropped_imgs_dir):
-        if f[-3:] == 'pkl':
-            with open(cropped_imgs_dir / f, 'rb') as file:
+        if f[-3:] == "pkl":
+            with open(cropped_imgs_dir / f, "rb") as file:
                 img_stat = pkl.load(file)
-                original_shapes.append(img_stat['pre_crop_shape'])
-                cropped_shapes.append(img_stat['post_crop_shape'])
-                spacings.append(img_stat['spacing'])
+                original_shapes.append(img_stat["pre_crop_shape"])
+                cropped_shapes.append(img_stat["post_crop_shape"])
+                spacings.append(img_stat["spacing"])
         else:
             images.append(f)
 
-
-    assert all([np.prod(a) >= np.prod(b) for a, b in zip(original_shapes, cropped_shapes)])
-    assert len(spacings) == len(original_shapes) and len(spacings) == len(cropped_shapes)
+    assert all(
+        [np.prod(a) >= np.prod(b) for a, b in zip(original_shapes, cropped_shapes)]
+    )
+    assert len(spacings) == len(original_shapes) and len(spacings) == len(
+        cropped_shapes
+    )
     assert all([lbl in images for lbl in os.listdir(cropped_labels_dir)])
+
+
+def test_normalize_dataset():
+    normalize_dataset(
+        TEST_DATA_DIR / 'crops' / 'imagesTr',
+        TEST_DATA_DIR / 'normalized' / 'imagesTr', 
+        {'modality': 'CT',
+         'cropping_threshold_met':True,
+         'stats':(1, 1), 
+         'percentiles':(0, 10)}
+    )

@@ -1,8 +1,10 @@
 import numpy as np
 import numpy.typing as npt
 from typing import Union, Optional, Dict, List, Tuple, Any
+
 NDArray = npt.NDArray[np.float32]
 from skimage.transform import resize
+
 
 def resample_image(
     image: NDArray,

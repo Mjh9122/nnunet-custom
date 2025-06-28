@@ -1,7 +1,16 @@
 import numpy as np
 import numpy.typing as npt
+import SimpleITK as sitk
+import os
+from tqdm import tqdm
+import pickle as pkl
+
 from typing import Union, Optional, Dict, List, Tuple, Any
+from pathlib import Path
+
+
 NDArray = npt.NDArray[np.float32]
+
 
 def crop_zeros(image: NDArray, mask: NDArray) -> Tuple[NDArray, NDArray]:
     """Creates bounding box of nonzero values in an image. Returns cropped image
@@ -13,7 +22,7 @@ def crop_zeros(image: NDArray, mask: NDArray) -> Tuple[NDArray, NDArray]:
         Tuple[NDArray, NDArray]: cropped image, cropped mask
     """
     if image.shape != mask.shape:
-        raise Exception(f'Image shape {image.shape} must match mask shape {mask.shape}')
+        raise Exception(f"Image shape {image.shape} must match mask shape {mask.shape}")
 
     # Find indeces of all nonzero values
     nonzero = np.array(np.where(image != 0))
@@ -21,8 +30,65 @@ def crop_zeros(image: NDArray, mask: NDArray) -> Tuple[NDArray, NDArray]:
     nonzero = np.array([np.min(nonzero, 1), np.max(nonzero, 1)]).T
 
     slices = tuple(slice(a, b + 1) for a, b in nonzero)
-    
+
     cropped_img = image[slices]
     cropped_mask = mask[slices]
 
     return cropped_img, cropped_mask
+
+def crop_dataset(dataset_dir: Path, output_dir: Path) -> Path:
+    """Crops all images and labels in dataset, placing them in a temp folder in the output dir
+
+    Args:
+        dataset_dir (Path): Dataset directory should have dataset.json, imagesTr, labelsTr
+        output_dir (Path): Directory to place completed preprocessed images
+    """
+    image_path = dataset_dir / "imagesTr"
+    label_path = dataset_dir / "labelsTr"
+
+    images = os.listdir(image_path)
+
+    cropped_path = output_dir / "crops"
+    cropped_images_path = cropped_path / "imagesTr"
+    cropped_labels_path = cropped_path / "labelsTr"
+
+    if not os.path.exists(cropped_path):
+        os.mkdir(cropped_path)
+
+    if not os.path.exists(cropped_images_path):
+        os.mkdir(cropped_images_path)
+        
+    if not os.path.exists(cropped_labels_path):
+        os.mkdir(cropped_labels_path)
+
+    for image in tqdm(images):
+        img = sitk.ReadImage(image_path / image)
+        mask = sitk.ReadImage(label_path / image)
+
+        spacing = img.GetSpacing()
+        img_np = sitk.GetArrayFromImage(img)
+        mask_np = sitk.GetArrayFromImage(mask)
+
+        pre_crop_size = img_np.shape
+
+        img_crop_np, mask_crop_np = crop_zeros(img_np, mask_np)
+
+        post_crop_size = img_crop_np.shape
+
+        img_crop = sitk.GetImageFromArray(img_crop_np)
+        sitk.WriteImage(img_crop, cropped_images_path / image)
+
+        mask_crop = sitk.GetImageFromArray(mask_crop_np)
+        sitk.WriteImage(mask_crop, cropped_labels_path / image)
+
+        stats = {
+            "pre_crop_shape": pre_crop_size,
+            "post_crop_shape": post_crop_size,
+            "spacing": spacing,
+        }
+
+        stats_pkl = image.split(".")[0] + ".pkl"
+        with open(cropped_images_path / stats_pkl, "wb") as file:
+            pkl.dump(stats, file)
+
+    return cropped_path

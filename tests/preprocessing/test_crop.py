@@ -3,10 +3,11 @@ import sys
 from pathlib import Path
 import numpy as np
 
-src_path = Path(__file__).parent.parent.parent / 'src'
+src_path = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
 from preprocessing.crop import crop_zeros
+
 
 @pytest.mark.parametrize(
     "input_dims, ones_slices, output_dims",
@@ -26,7 +27,7 @@ def test_crop_bool(input_dims, ones_slices, output_dims):
     if ones_slices is not None:
         slices = tuple(slice(a, b + 1) for a, b in ones_slices)
         arr[slices] = 1
-    
+
     seg_mask = arr.copy()
 
     cropped_arr, cropped_mask = crop_zeros(arr, seg_mask)

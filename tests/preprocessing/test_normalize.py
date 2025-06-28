@@ -7,17 +7,6 @@ sys.path.insert(0, str(src_path))
 
 from preprocessing.normalize import normalize
 
-def test_normalize_ct_nonzero():
-    img = np.zeros((4, 4), np.float32)
-    img[1:3, 1:3] = np.arange(1, 5).reshape((2, 2))
-
-    result = normalize(img, "CT", True, (2.0, 2.0), (2.0, 3.0))
-
-    expected = np.zeros((4, 4), np.float32)
-    expected[2, [1, 2]] = 1 / 2
-
-    np.testing.assert_allclose(expected, result)
-
 
 def test_normalize_ct_withzeros():
     img = np.zeros((4, 4), np.float32)

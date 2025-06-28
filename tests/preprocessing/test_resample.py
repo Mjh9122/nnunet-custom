@@ -8,6 +8,7 @@ sys.path.insert(0, str(src_path))
 
 from preprocessing.resample import resample_image
 
+
 @pytest.mark.parametrize(
     "image, old_spacing, new_spacing",
     (

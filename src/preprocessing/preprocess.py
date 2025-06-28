@@ -5,7 +5,8 @@ import json
 import os
 import pickle as pkl
 
-from .crop import crop_zeros
+from .crop import crop_dataset
+from .normalize import normalize_dataset
 from tqdm import tqdm
 from pathlib import Path
 from typing import Union, Optional, Dict, List, Tuple, Any
@@ -18,67 +19,8 @@ MAX_3D_PATCH_SIZE = (128, 128, 128)
 MIN_3D_BATCH_SIZE = 2
 CROPPING_NORMALIZATION_THRESHOLD = 0.25
 
-def crop_dataset(dataset_dir: Path, output_dir:Path) -> Path:
-    """Crops all images and labels in dataset, placing them in a temp folder in the output dir
-
-    Args:
-        dataset_dir (Path): Dataset directory should have dataset.json, imagesTr, labelsTr
-        output_dir (Path): Directory to place completed preprocessed images
-    """
-    image_path = dataset_dir / 'imagesTr'
-    label_path = dataset_dir / 'labelsTr'
-
-    images = os.listdir(image_path)
-
-    cropped_path = output_dir / 'crops'
-    cropped_images_path = cropped_path / 'imagesTr'
-    cropped_labels_path = cropped_path / 'labelsTr'
-
-    if not os.path.exists(cropped_path):
-        os.mkdir(cropped_path)
-    if not os.path.exists(cropped_images_path):
-        os.mkdir(cropped_images_path)
-    if not os.path.exists(cropped_labels_path):
-        os.mkdir(cropped_labels_path)
-
-    for image in tqdm(images):
-        img = sitk.ReadImage(image_path / image)
-        mask = sitk.ReadImage(label_path / image)
-
-        spacing = img.GetSpacing()
-        img_np = sitk.GetArrayFromImage(img)
-        mask_np = sitk.GetArrayFromImage(mask)
-
-        pre_crop_size = img_np.shape
-
-        img_crop_np, mask_crop_np = crop_zeros(img_np, mask_np)
-
-        post_crop_size = img_crop_np.shape
-
-        img_crop = sitk.GetImageFromArray(img_crop_np)
-        sitk.WriteImage(img_crop, cropped_images_path / image)
-
-        mask_crop = sitk.GetImageFromArray(mask_crop_np)
-        sitk.WriteImage(mask_crop, cropped_labels_path / image)
-
-        stats = {
-            'pre_crop_shape' : pre_crop_size,
-            'post_crop_shape' : post_crop_size,
-            'spacing' : spacing
-        }
-
-        stats_pkl  = image.split('.')[0] + ".pkl"
-        with open(cropped_images_path / stats_pkl, 'wb') as file:
-            pkl.dump(stats, file)
-
-    return cropped_path
-
-
-
-def compute_dataset_stats(
-    dataset_dir: Path, modality: str
-) -> Dict[str, Any]:
-    """Calculate key statistics from datasets.
+def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
+    """Calculate key statistics from cropped dataset.
     From CT datasets: mean, std, .5, 99.5 values from foreground classes. Median shape and voxel spacing.
     From non-CT datasets: Median shape and voxel spacing.
 
@@ -96,17 +38,44 @@ def compute_dataset_stats(
     if not os.path.exists(dataset_dir):
         raise (FileNotFoundError)
 
-    image_path = dataset_dir / 'imagesTr'
-    label_path = dataset_dir / 'labelsTr'
+    image_path = dataset_dir / "imagesTr"
+    label_path = dataset_dir / "labelsTr"
 
     images = os.listdir(image_path)
     labels = os.listdir(label_path)
 
-    dims = []
+    dataset_stats = {}
+
+    # Collect pkl files for spacing and shape info
+    pkls = [file for file in images if file[-3:] == "pkl"]
+    images = [file for file in images if file not in pkls]
+
+    # Aggregate dimensions and spacing for median calculations
+    precrop_dims = []
+    postcrop_dims = []
     spacings = []
 
-    stats = {}
-    stats['pre_crop_voxels'] = 0
+    for f in pkls:
+        with open(image_path / f, "rb") as file:
+            stats = pkl.load(file)
+
+            precrop_dims.append(stats["pre_crop_shape"])
+            postcrop_dims.append(stats["post_crop_shape"])
+            spacings.append(stats["spacing"])
+
+    precrop_dims = np.array(precrop_dims).T
+    dataset_stats["pre_crop_shape"] = np.median(precrop_dims, 1)
+
+    postcrop_dims = np.array(postcrop_dims).T
+    dataset_stats["post_crop_shape"] = np.median(postcrop_dims, 1)
+
+    spacings = np.array(spacings).T
+    dataset_stats["spacing"] = np.median(spacings, 1)
+
+    dataset_stats["meets_crop_threshold"] = (
+        dataset_stats["pre_crop_shape"].prod() * 3 / 4
+        > dataset_stats["post_crop_shape"].prod()
+    )
 
     if modality == "CT":
         for image in images:
@@ -136,9 +105,6 @@ def compute_dataset_stats(
             total += np.sum(masked_voxels)
             squares += np.sum(masked_voxels**2)
 
-            dims.append(img.GetSize())
-            spacings.append(img.GetSpacing())
-
             if len(percentile_pool) < max_pool_len:
                 percentile_pool.extend(masked_voxels)
             else:
@@ -147,8 +113,6 @@ def compute_dataset_stats(
                 )
                 for i, idx in enumerate(indices):
                     percentile_pool[idx] = masked_voxels[i]
-            
-            stats['pre_crop_voxels'] += np.prod(img_np.shape)
 
         mean = total / count
         var = squares / count - mean**2
@@ -158,23 +122,10 @@ def compute_dataset_stats(
         low = np.percentile(pool, 0.5)
         high = np.percentile(pool, 99.5)
 
-        stats["stats"] = (mean, std)
-        stats["percentiles"] = (low, high)
-        
+        dataset_stats["stats"] = (mean, std)
+        dataset_stats["percentiles"] = (low, high)
 
-    else:
-        for image in images:
-            img = sitk.ReadImage(image_path / image)
-            dims.append(img.GetSize())
-            spacings.append(img.GetSpacing())
-            stats['pre_crop_voxels'] += np.prod(img.GetSize())
-
-    dims = np.array(dims).T
-    stats["shape"] = np.median(dims, 1)
-
-    spacings = np.array(spacings).T
-    stats["spacing"] = np.median(spacings, 1)
-    return stats
+    return dataset_stats
 
 
 def determine_cascade_necessity(median_shape: Tuple[int, int, int]) -> bool:
@@ -253,7 +204,7 @@ def preprocess_dataset(dataset_dir: Path, output_dir: Path) -> Dict[Any, Any]:
     """Preprocesses an entire dataset. preprocessed images are placed in the output directory
     and dataset statistics are returned for use in downstream tasks
 
-    Args: 
+    Args:
         dataset_dir (Path): Path to dataset directory should contain a dataset.json file, imagesTr, and labelsTr dirs
         output_dir (Path): Path to output directory. Finished numpy arrays are stored alongside metadata.
 
@@ -262,27 +213,37 @@ def preprocess_dataset(dataset_dir: Path, output_dir: Path) -> Dict[Any, Any]:
     """
 
     if not os.path.exists(dataset_dir):
-        raise(FileNotFoundError)
-    
+        raise (FileNotFoundError)
+
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
 
     if not os.path.isdir(output_dir):
-        raise(Exception('Output directory is not a directory'))
-    
+        raise (Exception("Output directory is not a directory"))
+
     stats = {}
 
     # 1. Determine modality
-    modality = modality_detection(dataset_dir / 'dataset.json')
-    stats['modality'] = modality
+    modality = modality_detection(dataset_dir / "dataset.json")
+    stats["modality"] = modality
 
-    # 2. Crop data 
-    cropped_dir = crop_dataset(dataset_dir)
+    # 2. Crop data
+    cropped_dir = crop_dataset(dataset_dir, output_dir)
 
-    # 3. Normalize each image
-    # 4. Resample to median voxel spacing
-    # 5. Determine Cascade necessity
-    # 6. Generate low resolution image if needed
+    # 3. Calculate dataset stats
+    stats.update(compute_dataset_stats(cropped_dir, modality))
 
+    # 4. Normalize each image
+    normalize_dataset(
+        dataset_dir, 
+        dataset_dir / 'normalized', 
+        stats
+    )
+
+    # 5. Resample to median voxel spacing
+
+    # 6. Determine Cascade necessity
+    
+    # 7. Generate low resolution image if needed
 
     return stats

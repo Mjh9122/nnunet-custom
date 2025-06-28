@@ -15,9 +15,9 @@ STOPPING_SIZE = 8
 
 
 def determine_2d_patch_batch(
-    image_shape: Tuple[int, int, int], 
+    image_shape: Tuple[int, int, int],
     image_spacing: Tuple[float, float, float],
-    total_voxels: int
+    total_voxels: int,
 ) -> Tuple[Tuple[int, int], int]:
     """Determines an appropriate patch and batch size for the 2d Unet.
        Starts with (256, 256) and 42 and adjusts based on gpu memory available and maximum voxels per step
@@ -35,7 +35,8 @@ def determine_2d_patch_batch(
     Returns:
         Tuple[Tuple[int, int], int]: (patch size, batch size)
     """
-    aspect_ratio = 1/np.array(image_spacing)
+    aspect_ratio = 1 / np.array(image_spacing)
+
 
 def determine_3d_patch_batch(
     image_shape: Tuple[int, int, int], total_voxels: int
@@ -90,7 +91,9 @@ def determine_pooling_operations(
     return pools
 
 
-def determine_channels_per_layer(pooling_operations: Tuple[int, ...]) -> Tuple[int, ...]:
+def determine_channels_per_layer(
+    pooling_operations: Tuple[int, ...]
+) -> Tuple[int, ...]:
     """Determines number of channels per layer
     Number of channels double each layer starting at the number of initial channels with a maximum of 30 channels.
 
@@ -108,7 +111,12 @@ def determine_channels_per_layer(pooling_operations: Tuple[int, ...]) -> Tuple[i
     else:
         max_channels = MAX_3D_CHANNELS
 
-    return tuple([min(max_channels, INITIAL_CHANNELS * 2 ** i) for i in range(max(pooling_operations))])
+    return tuple(
+        [
+            min(max_channels, INITIAL_CHANNELS * 2**i)
+            for i in range(max(pooling_operations))
+        ]
+    )
 
 
 def generate_network_topologies(
