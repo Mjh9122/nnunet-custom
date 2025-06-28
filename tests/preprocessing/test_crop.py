@@ -4,21 +4,19 @@ warnings.filterwarnings(
     "ignore", category=DeprecationWarning, module="importlib._bootstrap"
 )
 
+import os
+import shutil
 import sys
 from pathlib import Path
 
 import numpy as np
-import os
 import pytest
 import SimpleITK as sitk
-import shutil
-
 
 src_path = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
-from preprocessing.crop import crop_zeros, crop_dataset
-
+from preprocessing.crop import crop_dataset, crop_zeros
 
 TEST_DATA_DIR = Path(__file__).parent / "crop_data"
 
