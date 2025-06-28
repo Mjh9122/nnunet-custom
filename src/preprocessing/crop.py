@@ -1,13 +1,19 @@
+import warnings
+
+warnings.filterwarnings(
+    "ignore", category=DeprecationWarning, module="importlib._bootstrap"
+)
+
+
+import os
+import pickle as pkl
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import numpy as np
 import numpy.typing as npt
 import SimpleITK as sitk
-import os
 from tqdm import tqdm
-import pickle as pkl
-
-from typing import Union, Optional, Dict, List, Tuple, Any
-from pathlib import Path
-
 
 NDArray = npt.NDArray[np.float32]
 
@@ -36,6 +42,7 @@ def crop_zeros(image: NDArray, mask: NDArray) -> Tuple[NDArray, NDArray]:
 
     return cropped_img, cropped_mask
 
+
 def crop_dataset(dataset_dir: Path, output_dir: Path) -> Path:
     """Crops all images and labels in dataset, placing them in a temp folder in the output dir
 
@@ -57,7 +64,7 @@ def crop_dataset(dataset_dir: Path, output_dir: Path) -> Path:
 
     if not os.path.exists(cropped_images_path):
         os.mkdir(cropped_images_path)
-        
+
     if not os.path.exists(cropped_labels_path):
         os.mkdir(cropped_labels_path)
 

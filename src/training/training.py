@@ -1,10 +1,9 @@
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
 from torch.utils.data import DataLoader
-
-from typing import Type, Union, Optional, Dict, List, Tuple, Any, Callable
 
 
 def batch_wise_loss_func(inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:

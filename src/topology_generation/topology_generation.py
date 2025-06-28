@@ -1,7 +1,7 @@
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import numpy as np
 import numpy.typing as npt
-
-from typing import Union, Optional, Dict, List, Tuple, Any
 
 MAX_3D_PATCH_VOXELS = 128**3
 MIN_3D_BATCH_SIZE = 2

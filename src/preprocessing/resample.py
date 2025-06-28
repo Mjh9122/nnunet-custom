@@ -1,9 +1,16 @@
+import warnings
+
+warnings.filterwarnings(
+    "ignore", category=DeprecationWarning, module="importlib._bootstrap"
+)
+
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import numpy as np
 import numpy.typing as npt
-from typing import Union, Optional, Dict, List, Tuple, Any
+from skimage.transform import resize
 
 NDArray = npt.NDArray[np.float32]
-from skimage.transform import resize
 
 
 def resample_image(

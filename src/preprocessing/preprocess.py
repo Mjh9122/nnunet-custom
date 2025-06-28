@@ -1,15 +1,22 @@
-import numpy as np
-import numpy.typing as npt
-import SimpleITK as sitk
+import warnings
+
+warnings.filterwarnings(
+    "ignore", category=DeprecationWarning, module="importlib._bootstrap"
+)
+
 import json
 import os
 import pickle as pkl
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import numpy.typing as npt
+import SimpleITK as sitk
+from tqdm import tqdm
 
 from .crop import crop_dataset
 from .normalize import normalize_dataset
-from tqdm import tqdm
-from pathlib import Path
-from typing import Union, Optional, Dict, List, Tuple, Any
 
 np.random.seed(42)
 
@@ -18,6 +25,7 @@ CT_CLIP_VALUES = (0.5, 99.5)
 MAX_3D_PATCH_SIZE = (128, 128, 128)
 MIN_3D_BATCH_SIZE = 2
 CROPPING_NORMALIZATION_THRESHOLD = 0.25
+
 
 def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
     """Calculate key statistics from cropped dataset.
@@ -234,16 +242,12 @@ def preprocess_dataset(dataset_dir: Path, output_dir: Path) -> Dict[Any, Any]:
     stats.update(compute_dataset_stats(cropped_dir, modality))
 
     # 4. Normalize each image
-    normalize_dataset(
-        dataset_dir, 
-        dataset_dir / 'normalized', 
-        stats
-    )
+    normalize_dataset(dataset_dir, dataset_dir / "normalized", stats)
 
     # 5. Resample to median voxel spacing
 
     # 6. Determine Cascade necessity
-    
+
     # 7. Generate low resolution image if needed
 
     return stats

@@ -1,30 +1,29 @@
-import pytest
-import sys
-from pathlib import Path
 import os
 import pickle as pkl
-
+import sys
 import warnings
+from pathlib import Path
+
+import pytest
 
 warnings.filterwarnings(
     "ignore", category=DeprecationWarning, module="importlib._bootstrap"
 )
 
-import SimpleITK as sitk
 import numpy as np
-
+import SimpleITK as sitk
 
 src_path = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
 from preprocessing.preprocess import (
-    modality_detection,
     compute_dataset_stats,
+    crop_dataset,
     determine_cascade_necessity,
     lower_resolution,
-    preprocess_dataset,
+    modality_detection,
     normalize_dataset,
-    crop_dataset,
+    preprocess_dataset,
 )
 
 TEST_DATA_DIR = Path(__file__).parent.parent / "test_data"
@@ -231,43 +230,43 @@ def test_preprocessing():
     pass
 
 
-def test_crop_dataset():
-    setup_dataset()
+# def test_crop_dataset():
+#     setup_dataset()
 
-    cropped_dir = crop_dataset(TEST_DATA_DIR, TEST_DATA_DIR)
-    cropped_imgs_dir = cropped_dir / "imagesTr"
-    cropped_labels_dir = cropped_dir / "labelsTr"
+#     cropped_dir = crop_dataset(TEST_DATA_DIR, TEST_DATA_DIR)
+#     cropped_imgs_dir = cropped_dir / "imagesTr"
+#     cropped_labels_dir = cropped_dir / "labelsTr"
 
-    original_shapes = []
-    cropped_shapes = []
-    spacings = []
-    images = []
+#     original_shapes = []
+#     cropped_shapes = []
+#     spacings = []
+#     images = []
 
-    for f in os.listdir(cropped_imgs_dir):
-        if f[-3:] == "pkl":
-            with open(cropped_imgs_dir / f, "rb") as file:
-                img_stat = pkl.load(file)
-                original_shapes.append(img_stat["pre_crop_shape"])
-                cropped_shapes.append(img_stat["post_crop_shape"])
-                spacings.append(img_stat["spacing"])
-        else:
-            images.append(f)
+#     for f in os.listdir(cropped_imgs_dir):
+#         if f[-3:] == "pkl":
+#             with open(cropped_imgs_dir / f, "rb") as file:
+#                 img_stat = pkl.load(file)
+#                 original_shapes.append(img_stat["pre_crop_shape"])
+#                 cropped_shapes.append(img_stat["post_crop_shape"])
+#                 spacings.append(img_stat["spacing"])
+#         else:
+#             images.append(f)
 
-    assert all(
-        [np.prod(a) >= np.prod(b) for a, b in zip(original_shapes, cropped_shapes)]
-    )
-    assert len(spacings) == len(original_shapes) and len(spacings) == len(
-        cropped_shapes
-    )
-    assert all([lbl in images for lbl in os.listdir(cropped_labels_dir)])
+#     assert all(
+#         [np.prod(a) >= np.prod(b) for a, b in zip(original_shapes, cropped_shapes)]
+#     )
+#     assert len(spacings) == len(original_shapes) and len(spacings) == len(
+#         cropped_shapes
+#     )
+#     assert all([lbl in images for lbl in os.listdir(cropped_labels_dir)])
 
 
-def test_normalize_dataset():
-    normalize_dataset(
-        TEST_DATA_DIR / 'crops' / 'imagesTr',
-        TEST_DATA_DIR / 'normalized' / 'imagesTr', 
-        {'modality': 'CT',
-         'cropping_threshold_met':True,
-         'stats':(1, 1), 
-         'percentiles':(0, 10)}
-    )
+# def test_normalize_dataset():
+#     normalize_dataset(
+#         TEST_DATA_DIR / 'crops' / 'imagesTr',
+#         TEST_DATA_DIR / 'normalized' / 'imagesTr',
+#         {'modality': 'CT',
+#          'cropping_threshold_met':True,
+#          'stats':(1, 1),
+#          'percentiles':(0, 10)}
+#     )

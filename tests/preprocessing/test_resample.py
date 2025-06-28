@@ -1,7 +1,8 @@
-import pytest
 import sys
 from pathlib import Path
+
 import numpy as np
+import pytest
 
 src_path = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(src_path))

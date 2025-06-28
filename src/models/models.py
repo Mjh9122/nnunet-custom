@@ -1,8 +1,8 @@
-import torch
-import torch.nn as nn
-import torch.functional as F
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from typing import Union, Optional, Dict, List, Tuple, Any
+import torch
+import torch.functional as F
+import torch.nn as nn
 
 
 class Unet2d(nn.Module):

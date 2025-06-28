@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 import numpy as np
 
 src_path = Path(__file__).parent.parent.parent / "src"
