@@ -75,9 +75,6 @@ def test_resample_image_energy_preservation():
 
     reshaped = resample_image(img, old_spacing, new_spacing, is_segmentation=False)
 
-    print(img.sum() * np.prod(old_spacing))
-    print(reshaped.sum() * np.prod(new_spacing))
-
     tol = 0.005
     sum_diff = abs(
         img.sum() * np.prod(old_spacing) - reshaped.sum() * np.prod(new_spacing)
@@ -137,6 +134,14 @@ def test_resample_image_seg_mask_down():
     reshaped = resample_image(img, old_spacing, new_spacing, True)
 
     np.testing.assert_array_equal(expected, reshaped)
+
+
+def test_bad_spacings():
+    with pytest.raises(Exception):
+        resample_image(np.ones((10, 10)), (0.1, 0.1), (0.1, 0.1, 0.1), True)
+
+    with pytest.raises(Exception):
+        resample_image(np.ones((10, 10)), (0.1, 0.1, 0.1), (0.1, 0.1, 0.1), True)
 
 
 def setup_dataset():
@@ -203,5 +208,43 @@ def test_resample_directory():
 
         assert img_np.shape == mask_np.shape
         assert abs(img_np.sum() * np.prod(spacing) - energies[i]) < energies[i] * 0.1
+
+    teardown_dataset()
+
+
+def test_bad_directories():
+    if not os.path.exists(TEST_DATA_DIR):
+        os.mkdir(TEST_DATA_DIR)
+    os.mkdir(TEST_DATA_DIR / "bad_images")
+    os.mkdir(TEST_DATA_DIR / "bad_labels")
+    os.mkdir(TEST_DATA_DIR / "bad_pickles")
+    os.mkdir(TEST_DATA_DIR / "bad_resampled")
+
+    arr = np.ones((10, 10))
+    img = sitk.GetImageFromArray(arr)
+    sitk.WriteImage(img, TEST_DATA_DIR / "bad_images" / "img.nii.gz")
+    sitk.WriteImage(img, TEST_DATA_DIR / "bad_labels" / "img.nii.gz")
+
+    with pytest.raises(Exception):
+        resample_dataset(
+            TEST_DATA_DIR / "bad_images",
+            TEST_DATA_DIR / "bad_labels",
+            TEST_DATA_DIR / "bad_pickles",
+            TEST_DATA_DIR / "bad_resampled",
+            {"spacing": (1.0, 1.0, 1.0)},
+        )
+
+    os.remove(TEST_DATA_DIR / "bad_labels" / "img.nii.gz")
+    with open(TEST_DATA_DIR / "bad_pickles" / "img.pkl", "wb") as file:
+        pkl.dump({"pickle": "pickle"}, file)
+
+    with pytest.raises(Exception):
+        resample_dataset(
+            TEST_DATA_DIR / "bad_images",
+            TEST_DATA_DIR / "bad_labels",
+            TEST_DATA_DIR / "bad_pickles",
+            TEST_DATA_DIR / "bad_resampled",
+            {"spacing": (1.0, 1.0, 1.0)},
+        )
 
     teardown_dataset()

@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 import SimpleITK as sitk
 
 src_path = Path(__file__).parent.parent.parent / "src"
@@ -61,6 +62,14 @@ def test_normalize_non_ct_withzeros():
     expected[2, 2] = (54 / 16) / np.sqrt(95 / 64)
 
     np.testing.assert_allclose(expected, result)
+
+
+def test_incorrect_params():
+    with pytest.raises(Exception):
+        normalize(np.ones((10, 10, 10)), "CT", True, dataset_stats=(1, 1))
+
+    with pytest.raises(Exception):
+        normalize(np.ones((10, 10, 10)), "CT", True, clipping_percentiles=(1, 1))
 
 
 def setup_dataset():

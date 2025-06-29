@@ -49,6 +49,11 @@ def test_crop_bool(input_dims, ones_slices, output_dims):
     np.testing.assert_array_equal(cropped_mask, np.ones(output_dims, np.float32))
 
 
+def test_crop_non_matching_dims():
+    with pytest.raises(Exception):
+        crop_zeros(np.ones((10, 10)), np.ones((10, 9)))
+
+
 def setup_dataset():
     if os.path.exists(TEST_DATA_DIR):
         if not os.path.isdir(TEST_DATA_DIR):

@@ -19,8 +19,8 @@ NDArray = npt.NDArray[np.float32]
 
 def resample_image(
     image: NDArray,
-    old_spacing: Tuple[float, float, float],
-    new_spacing: Tuple[float, float, float],
+    old_spacing: Tuple[float, ...],
+    new_spacing: Tuple[float, ...],
     is_segmentation: bool,
 ) -> NDArray:
     """Resamples image to new voxel spacing using cubic spline interpolation or nearest
@@ -28,8 +28,8 @@ def resample_image(
 
     Args:
         image (NDArray): original image
-        old_spacing (Tuple[float, float, float]): original voxel spacing (X, Y, Z)
-        new_spacing (Tuple[float, float, float]): new voxel spacing (X, Y, Z)
+        old_spacing (Tuple[float, ...]): original voxel spacing (X, Y, Z)
+        new_spacing (Tuple[float, ...]): new voxel spacing (X, Y, Z)
         is_segmentation: True if segmentation map is inputed
 
     Returns:
@@ -118,11 +118,6 @@ def resample_dataset(
         mask_resampled_np = resample_image(
             mask_np, orig_spacing, new_spacing, is_segmentation=True
         )
-
-        if img_resampled_np.shape != mask_resampled_np.shape:
-            raise Exception(
-                f"Resampled images and masks should be the same shape {img_resampled_np.shape} {mask_resampled_np.shape}"
-            )
 
         img_resampled = sitk.GetImageFromArray(img_resampled_np)
         mask_resampled = sitk.GetImageFromArray(mask_resampled_np)
