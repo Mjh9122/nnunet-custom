@@ -116,7 +116,7 @@ def resample_dataset(
             img_np, orig_spacing, new_spacing, is_segmentation=False
         )
         mask_resampled_np = resample_image(
-            img_np, orig_spacing, new_spacing, is_segmentation=True
+            mask_np, orig_spacing, new_spacing, is_segmentation=True
         )
 
         if img_resampled_np.shape != mask_resampled_np.shape:

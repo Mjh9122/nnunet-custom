@@ -70,11 +70,9 @@ def normalize_dataset(dataset_dir: Path, output_dir: Path, dataset_stats: Dict) 
     """Normalize all the cropped images in a dataset
 
     Args:
-        dataset_dir (Path): path to images
-        output_dir (Path): path to place normalized images
-        modality (str): image modality
-        cropping_threshold_met (bool): whether 25% threshold for cropping was met
-        dataset_stats (Dict): statistics of dataset
+        dataset_dir (Path): path to cropped images
+        output_dir (Path): path to output dir (images placed in output_dir / normalized)
+        dataset_stats (Dict): statistics of dataset (modality, cropping_threshold_met, etc)
     """
     images = [file for file in os.listdir(dataset_dir) if file[-3:] != "pkl"]
     modality = dataset_stats["modality"]
