@@ -122,7 +122,10 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
 
                 if old_count > 0:
                     delta = new_mean - old_mean
-                    M2 += np.sum((masked_voxels - new_mean) ** 2) + old_count * n * delta ** 2 / count
+                    M2 += (
+                        np.sum((masked_voxels - new_mean) ** 2)
+                        + old_count * n * delta**2 / count
+                    )
                 else:
                     M2 += np.sum((masked_voxels - new_mean) ** 2)
 

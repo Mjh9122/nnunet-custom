@@ -4,12 +4,13 @@ warnings.filterwarnings(
     "ignore", category=DeprecationWarning, module="importlib._bootstrap"
 )
 
+import os
+import shutil
 import sys
 from pathlib import Path
-import SimpleITK as sitk
+
 import numpy as np
-import shutil
-import os
+import SimpleITK as sitk
 
 src_path = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(src_path))
@@ -17,6 +18,7 @@ sys.path.insert(0, str(src_path))
 from preprocessing.normalize import normalize, normalize_dataset
 
 TEST_DATA_DIR = TEST_DATA_DIR = Path(__file__).parent / "normalize_data"
+
 
 def test_normalize_ct_withzeros():
     img = np.zeros((4, 4), np.float32)
@@ -60,6 +62,7 @@ def test_normalize_non_ct_withzeros():
 
     np.testing.assert_allclose(expected, result)
 
+
 def setup_dataset():
     if os.path.exists(TEST_DATA_DIR):
         if not os.path.isdir(TEST_DATA_DIR):
@@ -84,26 +87,29 @@ def setup_dataset():
 
     imgs = [sitk.GetImageFromArray(arr) for arr in arrs]
     for i, img in enumerate(imgs):
-        sitk.WriteImage(img, TEST_DATA_DIR / 'crops' / f"test0{i}.nii.gz")
+        sitk.WriteImage(img, TEST_DATA_DIR / "crops" / f"test0{i}.nii.gz")
 
-    # CT args 
+    # CT args
     mean, std, low, high = 2, 2, 1, 4
-    CT_map = np.vectorize({i:((min(max(i, low), high) - mean) / std) for i in range(7)}.get)
+    CT_map = np.vectorize(
+        {i: ((min(max(i, low), high) - mean) / std) for i in range(7)}.get
+    )
     CT_solutions = [CT_map(arr) for arr in arrs]
 
     threshold_solutions = []
     for arr in arrs:
         sol = arr.copy()
-        sol[sol != 0]  = (sol[sol != 0] - sol[sol != 0].mean()) / sol[sol != 0].std()
+        sol[sol != 0] = (sol[sol != 0] - sol[sol != 0].mean()) / sol[sol != 0].std()
         threshold_solutions.append(sol)
 
-    no_threshold_solutions = [(arr - arr.mean())/arr.std() for arr in arrs]
+    no_threshold_solutions = [(arr - arr.mean()) / arr.std() for arr in arrs]
 
     return CT_solutions, threshold_solutions, no_threshold_solutions
 
 
 def tear_down_dataset():
     shutil.rmtree(TEST_DATA_DIR)
+
 
 def check_solutions(solutions, images_path):
     images = sorted([f for f in os.listdir(images_path)])
@@ -113,41 +119,36 @@ def check_solutions(solutions, images_path):
         normalized_np = sitk.GetArrayFromImage(normalized_img)
         np.testing.assert_allclose(normalized_np, solution)
 
+
 def test_normalize_dataset():
     ct_solutions, threshold_solutions, no_threshold_solutions = setup_dataset()
     normalize_dataset(
-        TEST_DATA_DIR / 'crops', 
-        TEST_DATA_DIR / 'CT', 
+        TEST_DATA_DIR / "crops",
+        TEST_DATA_DIR / "CT",
         {
-            'stats':(2., 2.), 
-            'percentiles':(1., 4.), 
-            'modality':'CT',
-            'cropping_threshold_met':True
-        }
+            "stats": (2.0, 2.0),
+            "percentiles": (1.0, 4.0),
+            "modality": "CT",
+            "cropping_threshold_met": True,
+        },
     )
-    
-    check_solutions(ct_solutions, TEST_DATA_DIR / 'CT')
+
+    check_solutions(ct_solutions, TEST_DATA_DIR / "CT")
 
     normalize_dataset(
-        TEST_DATA_DIR / 'crops', 
-        TEST_DATA_DIR / 'threshold', 
-        {
-            'modality':'MRI',
-            'cropping_threshold_met':True
-        }
+        TEST_DATA_DIR / "crops",
+        TEST_DATA_DIR / "threshold",
+        {"modality": "MRI", "cropping_threshold_met": True},
     )
-    
-    check_solutions(threshold_solutions, TEST_DATA_DIR / 'threshold')
+
+    check_solutions(threshold_solutions, TEST_DATA_DIR / "threshold")
 
     normalize_dataset(
-        TEST_DATA_DIR / 'crops', 
-        TEST_DATA_DIR / 'no_threshold', 
-        {
-            'modality':'MRI',
-            'cropping_threshold_met':False
-        }
+        TEST_DATA_DIR / "crops",
+        TEST_DATA_DIR / "no_threshold",
+        {"modality": "MRI", "cropping_threshold_met": False},
     )
-    
-    check_solutions(no_threshold_solutions, TEST_DATA_DIR / 'no_threshold')
+
+    check_solutions(no_threshold_solutions, TEST_DATA_DIR / "no_threshold")
 
     tear_down_dataset()
