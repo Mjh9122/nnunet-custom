@@ -94,7 +94,7 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
                     )
                 )
 
-        count, total, squares = 0, 0, 0
+        count, total, M2 = 0, 0, 0
         percentile_pool = []
         max_pool_len = 1_000_000
 
@@ -109,21 +109,34 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
 
             n = len(masked_voxels)
 
-            count += n
-            total += np.sum(masked_voxels)
-            squares += np.sum(masked_voxels**2)
+            if n > 0:
+                old_count = count
+                if count > 0:
+                    old_mean = total / count
+                else:
+                    old_mean = 0
 
-            if len(percentile_pool) < max_pool_len:
-                percentile_pool.extend(masked_voxels)
-            else:
-                indices = np.random.randint(
-                    0, len(percentile_pool), size=min(n, len(percentile_pool))
-                )
-                for i, idx in enumerate(indices):
-                    percentile_pool[idx] = masked_voxels[i]
+                count += n
+                total += np.sum(masked_voxels)
+                new_mean = total / count
+
+                if old_count > 0:
+                    delta = new_mean - old_mean
+                    M2 += np.sum((masked_voxels - new_mean) ** 2) + old_count * n * delta ** 2 / count
+                else:
+                    M2 += np.sum((masked_voxels - new_mean) ** 2)
+
+                if len(percentile_pool) < max_pool_len:
+                    percentile_pool.extend(masked_voxels)
+                else:
+                    indices = np.random.randint(
+                        0, len(percentile_pool), size=min(n, len(percentile_pool))
+                    )
+                    for i, idx in enumerate(indices):
+                        percentile_pool[idx] = masked_voxels[i]
 
         mean = total / count
-        var = squares / count - mean**2
+        var = M2 / count
         std = np.sqrt(var)
 
         pool = np.array(percentile_pool)
@@ -242,7 +255,7 @@ def preprocess_dataset(dataset_dir: Path, output_dir: Path) -> Dict[Any, Any]:
     stats.update(compute_dataset_stats(cropped_dir, modality))
 
     # 4. Normalize each image
-    normalize_dataset(dataset_dir, dataset_dir / "normalized", stats)
+    normalize_dataset(cropped_dir, dataset_dir / "normalized", stats)
 
     # 5. Resample to median voxel spacing
 
