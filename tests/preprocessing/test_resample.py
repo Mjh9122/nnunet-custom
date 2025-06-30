@@ -196,7 +196,7 @@ def test_resample_directory():
         TEST_DATA_DIR / "labels",
         TEST_DATA_DIR / "pickles",
         TEST_DATA_DIR / "resampled",
-        {"spacing": spacing},
+        spacing,
     )
 
     for i, image in enumerate(images):
@@ -231,7 +231,7 @@ def test_bad_directories():
             TEST_DATA_DIR / "bad_labels",
             TEST_DATA_DIR / "bad_pickles",
             TEST_DATA_DIR / "bad_resampled",
-            {"spacing": (1.0, 1.0, 1.0)},
+            (1.0, 1.0, 1.0),
         )
 
     os.remove(TEST_DATA_DIR / "bad_labels" / "img.nii.gz")
@@ -244,7 +244,7 @@ def test_bad_directories():
             TEST_DATA_DIR / "bad_labels",
             TEST_DATA_DIR / "bad_pickles",
             TEST_DATA_DIR / "bad_resampled",
-            {"spacing": (1.0, 1.0, 1.0)},
+            (1.0, 1.0, 1.0),
         )
 
     teardown_dataset()

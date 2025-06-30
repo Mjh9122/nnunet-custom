@@ -64,7 +64,7 @@ def resample_dataset(
     labels_dir: Path,
     pickles_dir: Path,
     output_dir: Path,
-    dataset_stats: Dict,
+    target_spacing: Tuple[float, ...],
 ):
     """Resample entire dataset to median spacing
 
@@ -73,7 +73,7 @@ def resample_dataset(
         labels_dir (Path): path to cropped segmentation masks
         pickles_dir (Path): path to individualized spacing info
         output_dir (Path): path to place resampled images/masks
-        dataset_stats (Dict): dataset_stats
+        target_spacing (Tuple[float, ...]): spacing to resample images to 
     """
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
@@ -88,7 +88,7 @@ def resample_dataset(
     pickles = [file for file in os.listdir(pickles_dir) if file[-3:] == "pkl"]
     masks = os.listdir(labels_dir)
 
-    new_spacing = dataset_stats["spacing"]
+    new_shapes = []
 
     for image in images:
         pickle = image.split(".")[0] + ".pkl"
@@ -112,11 +112,13 @@ def resample_dataset(
                 f"images and masks must be the same shape {img_np.shape} {mask_np.shape}"
             )
 
+        new_shapes.append(img_np.shape)
+
         img_resampled_np = resample_image(
-            img_np, orig_spacing, new_spacing, is_segmentation=False
+            img_np, orig_spacing, target_spacing, is_segmentation=False
         )
         mask_resampled_np = resample_image(
-            mask_np, orig_spacing, new_spacing, is_segmentation=True
+            mask_np, orig_spacing, target_spacing, is_segmentation=True
         )
 
         img_resampled = sitk.GetImageFromArray(img_resampled_np)
@@ -124,3 +126,6 @@ def resample_dataset(
 
         sitk.WriteImage(img_resampled, output_dir / "imagesTr" / image)
         sitk.WriteImage(mask_resampled, output_dir / "labelsTr" / image)
+
+    new_shapes = np.array(new_shapes).T
+    return np.median(new_shapes, axis=1)

@@ -17,6 +17,7 @@ from tqdm import tqdm
 
 from .crop import crop_dataset
 from .normalize import normalize_dataset
+from .resample import resample_dataset
 
 np.random.seed(42)
 
@@ -251,19 +252,40 @@ def preprocess_dataset(dataset_dir: Path, output_dir: Path) -> Dict[Any, Any]:
     modality = modality_detection(dataset_dir / "dataset.json")
     stats["modality"] = modality
 
-    # 2. Crop data
+    # 2. Crop data + generate pickles -> place in dataset_dir / crops
     cropped_dir = crop_dataset(dataset_dir, output_dir)
 
     # 3. Calculate dataset stats
     stats.update(compute_dataset_stats(cropped_dir, modality))
 
-    # 4. Normalize each image
+    # 4. Normalize each image place new images in normalized 
     normalize_dataset(cropped_dir, dataset_dir / "normalized", stats)
 
-    # 5. Resample to median voxel spacing
-
+    # 5. Resample to median voxel spacing -> place in dataset_dir / high_res
+    stats["post_resample_shape"] = resample_dataset(
+        dataset_dir / "normalized",
+        cropped_dir / "labelsTr",
+        cropped_dir / "labelsTr",
+        dataset_dir / "high_res",
+        stats['spacing'],
+    )
     # 6. Determine Cascade necessity
+    cascade_needed = determine_cascade_necessity(stats['post_resample_shape'])
 
-    # 7. Generate low resolution image if needed
+    # 7. Generate low resolution image if needed -> place in dataset_dir / low_res
+    if cascade_needed:
+        low_res = lower_resolution(stats['post_resample_shape'], stats['spacing'])
+        stats['low_res_spacing'] = low_res
+
+        resample_dataset(
+            dataset_dir / "normalized",
+            cropped_dir / "labelsTr",
+            cropped_dir / "labelsTr",
+            dataset_dir / "low_res",
+            stats['low_res_spacing'],
+        )
+
+    stats['low_res_path'] = dataset_dir / "low_res"
+    stats['high_res_path'] = dataset_dir / "high_res"
 
     return stats

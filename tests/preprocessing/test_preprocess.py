@@ -17,10 +17,13 @@ import SimpleITK as sitk
 src_path = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
-from preprocessing.preprocess import (compute_dataset_stats,
-                                      determine_cascade_necessity,
-                                      lower_resolution, modality_detection,
-                                      preprocess_dataset)
+from preprocessing.preprocess import (
+    compute_dataset_stats,
+    determine_cascade_necessity,
+    lower_resolution,
+    modality_detection,
+    preprocess_dataset,
+)
 
 TEST_DATA_DIR = Path(__file__).parent / "preprocess_data"
 TEST_JSON_DIR = Path(__file__).parent / "json_data"
@@ -236,5 +239,40 @@ def test_reservoir_CT():
     assert low < n * (0.6 / 100)
     assert high > n * (99.4 / 100)
     assert high < n * (99.6 / 100)
+
+    tear_down_dataset()
+
+def test_preprocess_bad_dataset():
+    with pytest.raises(Exception):
+        preprocess_dataset(TEST_DATA_DIR / 'bad_path', TEST_DATA_DIR)
+
+    if not os.path.exists(TEST_DATA_DIR):
+        os.mkdir(TEST_DATA_DIR)
+    os.mkdir(TEST_DATA_DIR / 'fake_dir')
+
+    with open(TEST_DATA_DIR / 'fake_file', 'w') as file:
+        file.write('this is a file')
+
+    with pytest.raises(Exception):
+        preprocess_dataset(TEST_DATA_DIR / 'fake_dir', TEST_DATA_DIR / 'fake_file')
+
+    tear_down_dataset()
+
+@pytest.mark.paramatrize(
+    'target_image_shape, needs_cascade', 
+    (
+        ((250, 200, 200), True),
+        ((100, 50, 50), False)
+    )
+)
+def test_whole_preprocessing_pipeline():
+    if not os.path.exists(TEST_DATA_DIR):
+        os.mkdir(TEST_DATA_DIR)
+
+    os.mkdir(TEST_DATA_DIR / 'dataset')
+    dataset_dir = TEST_DATA_DIR / 'dataset'
+
+    os.mkdir(dataset_dir / 'imagesTr')
+    os.mkdir(dataset_dir / 'labelsTr')
 
     tear_down_dataset()
