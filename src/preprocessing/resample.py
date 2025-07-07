@@ -13,6 +13,7 @@ import numpy as np
 import numpy.typing as npt
 import SimpleITK as sitk
 from skimage.transform import resize
+from tqdm import tqdm
 
 NDArray = npt.NDArray[np.float32]
 
@@ -73,7 +74,7 @@ def resample_dataset(
         labels_dir (Path): path to cropped segmentation masks
         pickles_dir (Path): path to individualized spacing info
         output_dir (Path): path to place resampled images/masks
-        target_spacing (Tuple[float, ...]): spacing to resample images to 
+        target_spacing (Tuple[float, ...]): spacing to resample images to
     """
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
@@ -90,7 +91,7 @@ def resample_dataset(
 
     new_shapes = []
 
-    for image in images:
+    for image in tqdm(images):
         pickle = image.split(".")[0] + ".pkl"
         if pickle not in pickles:
             raise Exception("WARNING NO PICKLES --> missing {image} pickle")

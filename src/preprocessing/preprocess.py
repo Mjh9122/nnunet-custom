@@ -81,7 +81,7 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
     spacings = np.array(spacings).T
     dataset_stats["spacing"] = np.median(spacings, 1)
 
-    dataset_stats["meets_crop_threshold"] = (
+    dataset_stats["cropping_threshold_met"] = (
         dataset_stats["pre_crop_shape"].prod() * 3 / 4
         > dataset_stats["post_crop_shape"].prod()
     )
@@ -252,40 +252,48 @@ def preprocess_dataset(dataset_dir: Path, output_dir: Path) -> Dict[Any, Any]:
     modality = modality_detection(dataset_dir / "dataset.json")
     stats["modality"] = modality
 
+    print("Modality Detected")
+
     # 2. Crop data + generate pickles -> place in dataset_dir / crops
     cropped_dir = crop_dataset(dataset_dir, output_dir)
+    print("Cropped")
 
     # 3. Calculate dataset stats
     stats.update(compute_dataset_stats(cropped_dir, modality))
+    print("Stats Calculated")
 
-    # 4. Normalize each image place new images in normalized 
-    normalize_dataset(cropped_dir, dataset_dir / "normalized", stats)
+    # 4. Normalize each image place new images in normalized
+    normalize_dataset(cropped_dir / "imagesTr", output_dir / "normalized", stats)
+    print("Normalized")
 
     # 5. Resample to median voxel spacing -> place in dataset_dir / high_res
     stats["post_resample_shape"] = resample_dataset(
-        dataset_dir / "normalized",
+        output_dir / "normalized",
         cropped_dir / "labelsTr",
-        cropped_dir / "labelsTr",
-        dataset_dir / "high_res",
-        stats['spacing'],
+        cropped_dir / "imagesTr",
+        output_dir / "high_res",
+        stats["spacing"],
     )
     # 6. Determine Cascade necessity
-    cascade_needed = determine_cascade_necessity(stats['post_resample_shape'])
+    cascade_needed = determine_cascade_necessity(stats["post_resample_shape"])
+    print("Resampled")
 
     # 7. Generate low resolution image if needed -> place in dataset_dir / low_res
     if cascade_needed:
-        low_res = lower_resolution(stats['post_resample_shape'], stats['spacing'])
-        stats['low_res_spacing'] = low_res
+        low_res = lower_resolution(stats["post_resample_shape"], stats["spacing"])
+        stats["low_res_spacing"] = low_res
 
         resample_dataset(
-            dataset_dir / "normalized",
+            output_dir / "normalized",
             cropped_dir / "labelsTr",
-            cropped_dir / "labelsTr",
-            dataset_dir / "low_res",
-            stats['low_res_spacing'],
+            cropped_dir / "imagesTr",
+            output_dir / "low_res",
+            stats["low_res_spacing"],
         )
 
-    stats['low_res_path'] = dataset_dir / "low_res"
-    stats['high_res_path'] = dataset_dir / "high_res"
+        stats["low_res_path"] = dataset_dir / "low_res"
+
+        print("Low Res Resampled")
+    stats["high_res_path"] = dataset_dir / "high_res"
 
     return stats

@@ -1,3 +1,4 @@
+import json
 import os
 import pickle as pkl
 import shutil
@@ -242,37 +243,133 @@ def test_reservoir_CT():
 
     tear_down_dataset()
 
+
 def test_preprocess_bad_dataset():
     with pytest.raises(Exception):
-        preprocess_dataset(TEST_DATA_DIR / 'bad_path', TEST_DATA_DIR)
+        preprocess_dataset(TEST_DATA_DIR / "bad_path", TEST_DATA_DIR)
 
     if not os.path.exists(TEST_DATA_DIR):
         os.mkdir(TEST_DATA_DIR)
-    os.mkdir(TEST_DATA_DIR / 'fake_dir')
+    os.mkdir(TEST_DATA_DIR / "fake_dir")
 
-    with open(TEST_DATA_DIR / 'fake_file', 'w') as file:
-        file.write('this is a file')
+    with open(TEST_DATA_DIR / "fake_file", "w") as file:
+        file.write("this is a file")
 
     with pytest.raises(Exception):
-        preprocess_dataset(TEST_DATA_DIR / 'fake_dir', TEST_DATA_DIR / 'fake_file')
+        preprocess_dataset(TEST_DATA_DIR / "fake_dir", TEST_DATA_DIR / "fake_file")
 
     tear_down_dataset()
 
-@pytest.mark.paramatrize(
-    'target_image_shape, needs_cascade', 
-    (
-        ((250, 200, 200), True),
-        ((100, 50, 50), False)
-    )
+
+def create_test_images(shape):
+    spacings = [
+        (0.5, 0.25, 0.25),
+        (0.1, 0.1, 0.1),
+        (1.0, 1.0, 1.0),
+        (2.0, 1.0, 1.0),
+        (1.0, 0.5, 0.5),
+    ]
+    median_spacing = np.median(np.array(spacings).T, axis=1)
+
+    dim_multiplier = [np.array(s) / median_spacing for s in spacings]
+
+    orig_dims = (np.array(shape) * np.array(dim_multiplier)).astype(int)
+
+    non_zeros = [np.random.randint(0, 1000, dims) for dims in orig_dims]
+
+    zero_buffers = [np.zeros(dims + np.array((10, 10, 10))) for dims in orig_dims]
+
+    imgs = []
+    masks = []
+
+    for non_zero, buffer in zip(non_zeros, zero_buffers):
+        img = buffer.copy()
+        img[5:-5, 5:-5, 5:-5] = non_zero
+
+        mask = buffer.copy()
+
+        imgs.append(img)
+        masks.append(mask)
+
+    return imgs, masks, spacings
+
+
+@pytest.mark.parametrize(
+    "target_image_shape, needs_cascade",
+    (((250, 200, 200), True), ((100, 50, 50), False)),
 )
-def test_whole_preprocessing_pipeline():
+def test_whole_preprocessing_pipeline(target_image_shape, needs_cascade):
     if not os.path.exists(TEST_DATA_DIR):
         os.mkdir(TEST_DATA_DIR)
 
-    os.mkdir(TEST_DATA_DIR / 'dataset')
-    dataset_dir = TEST_DATA_DIR / 'dataset'
+    os.mkdir(TEST_DATA_DIR / "dataset")
+    dataset_dir = TEST_DATA_DIR / "dataset"
 
-    os.mkdir(dataset_dir / 'imagesTr')
-    os.mkdir(dataset_dir / 'labelsTr')
+    os.mkdir(dataset_dir / "imagesTr")
+    os.mkdir(dataset_dir / "labelsTr")
+    os.mkdir(dataset_dir / "output")
+
+    imgs, masks, spacings = create_test_images(target_image_shape)
+
+    for i, (img, mask, spacing) in enumerate(zip(imgs, masks, spacings)):
+        img_sitk = sitk.GetImageFromArray(img)
+        img_sitk.SetSpacing(spacing)
+
+        mask_sitk = sitk.GetImageFromArray(mask)
+
+        sitk.WriteImage(img_sitk, dataset_dir / "imagesTr" / f"img{i}.nii.gz")
+        sitk.WriteImage(mask_sitk, dataset_dir / "labelsTr" / f"img{i}.nii.gz")
+
+    dataset_json = {
+        "name": "test",
+        "description": "N/A",
+        "reference": "N/A",
+        "modality": {"0": "MRI"},
+        "licence": "ARG",
+        "tensorImageSize": "3D",
+        "labels": {"0": "background"},
+        "numTraining": 5,
+        "numTest": 0,
+        "training": [
+            {"image": "img0.nii.gz"},
+            {"image": "img1.nii.gz"},
+            {"image": "img2.nii.gz"},
+            {"image": "img3.nii.gz"},
+            {"image": "img4.nii.gz"},
+        ],
+        "test": [],
+    }
+
+    with open(dataset_dir / "dataset.json", "w") as file:
+        json.dump(dataset_json, file)
+
+    stats = preprocess_dataset(dataset_dir, dataset_dir / "output")
+
+    np.testing.assert_array_equal(stats["post_crop_shape"], target_image_shape)
+    assert (stats.get("low_res_spacing") is not None) == needs_cascade
+    assert stats["modality"] == "Not CT"
+
+    output_directories = [
+        dataset_dir / "imagesTr",
+        dataset_dir / "labelsTr",
+        dataset_dir / "output" / "crops" / "imagesTr",
+        dataset_dir / "output" / "crops" / "labelsTr",
+        dataset_dir / "output" / "normalized",
+        dataset_dir / "output" / "high_res" / "imagesTr",
+        dataset_dir / "output" / "high_res" / "labelsTr",
+    ]
+
+    if needs_cascade:
+        output_directories.extend(
+            [
+                dataset_dir / "output" / "low_res" / "imagesTr",
+                dataset_dir / "output" / "low_res" / "labelsTr",
+            ]
+        )
+
+    images = set(os.listdir(dataset_dir / "labelsTr"))
+
+    for dir in output_directories:
+        assert set(images).issubset(os.listdir(dir))
 
     tear_down_dataset()
