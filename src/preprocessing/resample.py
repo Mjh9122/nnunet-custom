@@ -91,7 +91,7 @@ def resample_dataset(
 
     new_shapes = []
 
-    for image in tqdm(images):
+    for image in tqdm(images, "Resampling"):
         pickle = image.split(".")[0] + ".pkl"
         if pickle not in pickles:
             raise Exception(f"WARNING NO PICKLES --> missing {image} pickle")

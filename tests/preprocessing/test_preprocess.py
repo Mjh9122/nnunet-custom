@@ -415,7 +415,7 @@ def test_whole_preprocessing_pipeline(target_image_shape, needs_cascade):
     )
 
     with open(dataset_dir / "output" / "dataset_stats.pkl", "rb") as file:
-        stats = json.load(file)
+        stats = pkl.load(file)
 
     np.testing.assert_array_equal(stats["post_crop_shape"], target_image_shape)
     assert (stats.get("low_res_spacing") is not None) == needs_cascade

@@ -1,11 +1,10 @@
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-
-from pathlib import Path
 
 
 def batch_wise_loss_func(inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -102,11 +101,12 @@ def epoch(
         Tuple[float, float]: (training loss, validation loss)
     """
 
+
 def main(dataset_dir: Path, output_dir: Path) -> None:
-    """ Main function to train model on generic (medical segmentation decathlon formated) dataset
+    """Main function to train model on generic (medical segmentation decathlon formated) dataset
 
     Args:
-        dataset_dir (Path): Path to dataset 
+        dataset_dir (Path): Path to dataset
         output_dir (Path): Path to outputs (models and info for prediction)
     """
     pass

@@ -98,7 +98,7 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
         percentile_pool = []
         max_pool_len = 1_000_000
 
-        for image in tqdm(images):
+        for image in tqdm(images, desc="Stats"):
             img = sitk.ReadImage(image_path / image)
             mask = sitk.ReadImage(label_path / image)
 
@@ -267,9 +267,7 @@ def modality_detection(json_path: Path) -> str:
             return "Not CT"
 
 
-def preprocess_dataset(
-    dataset_dir: Path, cv_split: List[str], output_dir: Path
-):
+def preprocess_dataset(dataset_dir: Path, cv_split: List[str], output_dir: Path):
     """Preprocesses an entire dataset. preprocessed images are placed in the output directory
     and dataset statistics are returned for use in downstream tasks
 
@@ -294,24 +292,19 @@ def preprocess_dataset(
     modality = modality_detection(dataset_dir / "dataset.json")
     stats["modality"] = modality
 
-    print("Modality Detected")
-
     # 2. Select CV -> place in output_dir
     select_cv_fold(dataset_dir, cv_split, output_dir / "original")
 
     # 2. Crop data + generate pickles -> replace output_dir
     crop_dataset(output_dir / "original", output_dir / "cropped")
-    print("Cropped")
 
     # 3. Calculate dataset stats
     stats.update(compute_dataset_stats(output_dir / "cropped", modality))
-    print("Stats Calculated")
 
     # 4. Normalize each image place new images in normalized
     normalize_dataset(
         output_dir / "cropped" / "imagesTr", output_dir / "normalized", stats
     )
-    print("Normalized")
 
     # 5. Resample to median voxel spacing -> place in dataset_dir / high_res
     stats["post_resample_shape"] = resample_dataset(
@@ -323,7 +316,6 @@ def preprocess_dataset(
     )
     # 6. Determine Cascade necessity
     cascade_needed = determine_cascade_necessity(stats["post_resample_shape"])
-    print("Resampled")
 
     # 7. Generate low resolution image if needed -> place in dataset_dir / low_res
     if cascade_needed:
@@ -340,14 +332,13 @@ def preprocess_dataset(
 
         stats["low_res_path"] = dataset_dir / "low_res"
 
-        print("Low Res Resampled")
     stats["high_res_path"] = dataset_dir / "high_res"
 
     # clean up output directory
-    shutil.rmtree(output_dir / 'original')
-    shutil.rmtree(output_dir / 'cropped')
-    shutil.rmtree(output_dir / 'normalized')
+    shutil.rmtree(output_dir / "original")
+    shutil.rmtree(output_dir / "cropped")
+    shutil.rmtree(output_dir / "normalized")
 
     # Save dataset stats for later
-    with open(output_dir / 'dataset_stats', 'wb') as f:
+    with open(output_dir / "dataset_stats.pkl", "wb") as f:
         pkl.dump(stats, f)

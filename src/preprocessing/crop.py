@@ -71,7 +71,7 @@ def crop_dataset(dataset_dir: Path, output_dir: Path):
     if not os.path.exists(pickle_path):
         os.mkdir(pickle_path)
 
-    for image in tqdm(images):
+    for image in tqdm(images, desc="Cropping"):
         img = sitk.ReadImage(image_path / image)
         mask = sitk.ReadImage(label_path / image)
 
