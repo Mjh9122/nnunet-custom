@@ -85,8 +85,8 @@ def resample_dataset(
     if not os.path.exists(output_dir / "labelsTr"):
         os.mkdir(output_dir / "labelsTr")
 
-    images = [file for file in os.listdir(images_dir) if file[-3:] != "pkl"]
-    pickles = [file for file in os.listdir(pickles_dir) if file[-3:] == "pkl"]
+    images = os.listdir(images_dir)
+    pickles = os.listdir(pickles_dir)
     masks = os.listdir(labels_dir)
 
     new_shapes = []
@@ -94,9 +94,9 @@ def resample_dataset(
     for image in tqdm(images):
         pickle = image.split(".")[0] + ".pkl"
         if pickle not in pickles:
-            raise Exception("WARNING NO PICKLES --> missing {image} pickle")
+            raise Exception(f"WARNING NO PICKLES --> missing {image} pickle")
         if image not in masks:
-            raise Exception("WARNING NO MASK --> missing {image} mask")
+            raise Exception(f"WARNING NO MASK --> missing {image} mask")
 
         with open(pickles_dir / pickle, "rb") as file:
             stats = pkl.load(file)

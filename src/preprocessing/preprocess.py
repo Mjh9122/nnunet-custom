@@ -7,6 +7,7 @@ warnings.filterwarnings(
 import json
 import os
 import pickle as pkl
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -49,15 +50,13 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
 
     image_path = dataset_dir / "imagesTr"
     label_path = dataset_dir / "labelsTr"
+    pickle_path = dataset_dir / "picklesTr"
 
     images = os.listdir(image_path)
     labels = os.listdir(label_path)
+    pkls = os.listdir(pickle_path)
 
     dataset_stats = {}
-
-    # Collect pkl files for spacing and shape info
-    pkls = [file for file in images if file[-3:] == "pkl"]
-    images = [file for file in images if file not in pkls]
 
     # Aggregate dimensions and spacing for median calculations
     precrop_dims = []
@@ -65,7 +64,7 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
     spacings = []
 
     for f in pkls:
-        with open(image_path / f, "rb") as file:
+        with open(pickle_path / f, "rb") as file:
             stats = pkl.load(file)
 
             precrop_dims.append(stats["pre_crop_shape"])
@@ -153,6 +152,49 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
     return dataset_stats
 
 
+def select_cv_fold(dataset_dir: Path, images_list: List[str], output_dir: Path):
+    """Copies selected images to separate directory for preprocessing
+
+    Args:
+        dataset_dir (Path): Dataset dir (should follow medical segmentaion decathalon format)
+        images_list (List[str]): Images to be preprocessed (CV fold)
+        output_dir (Path): Directory to put selected images and labels
+    """
+
+    all_images = dataset_dir / "imagesTr"
+    all_labels = dataset_dir / "labelsTr"
+    selected_images = output_dir / "imagesTr"
+    selected_labels = output_dir / "labelsTr"
+
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    if not os.path.exists(output_dir / "imagesTr"):
+        os.mkdir(output_dir / "imagesTr")
+    if not os.path.exists(output_dir / "labelsTr"):
+        os.mkdir(output_dir / "labelsTr")
+
+    # Check all images are present in dataset_dir/imagesTr
+    if not set(images_list).issubset(os.listdir(all_images)):
+        raise (
+            Exception(
+                "All images in images_list must be present in dataset_dir/imagesTr"
+            )
+        )
+
+    # Check all images are present in dataset_dir/labelsTr
+    if not set(images_list).issubset(os.listdir(all_labels)):
+        raise (
+            Exception(
+                "All images in images_list must be present in dataset_dir/labelsTr"
+            )
+        )
+
+    # Copy all images and labels to output_dir/images(labels)Tr
+    for img in images_list:
+        shutil.copy(all_images / img, selected_images / img)
+        shutil.copy(all_labels / img, selected_labels / img)
+
+
 def determine_cascade_necessity(median_shape: Tuple[int, int, int]) -> bool:
     """Determines if U-Net Cascade needed based on nnU-Net heuristics.
 
@@ -225,12 +267,15 @@ def modality_detection(json_path: Path) -> str:
             return "Not CT"
 
 
-def preprocess_dataset(dataset_dir: Path, output_dir: Path) -> Dict[Any, Any]:
+def preprocess_dataset(
+    dataset_dir: Path, cv_split: List[str], output_dir: Path
+) -> Dict[Any, Any]:
     """Preprocesses an entire dataset. preprocessed images are placed in the output directory
     and dataset statistics are returned for use in downstream tasks
 
     Args:
         dataset_dir (Path): Path to dataset directory should contain a dataset.json file, imagesTr, and labelsTr dirs
+        cv_split (List[str]): List of image names in the dataset dir to preprocess
         output_dir (Path): Path to output directory. Finished numpy arrays are stored alongside metadata.
 
     Returns:
@@ -254,23 +299,28 @@ def preprocess_dataset(dataset_dir: Path, output_dir: Path) -> Dict[Any, Any]:
 
     print("Modality Detected")
 
-    # 2. Crop data + generate pickles -> place in dataset_dir / crops
-    cropped_dir = crop_dataset(dataset_dir, output_dir)
+    # 2. Select CV -> place in output_dir
+    select_cv_fold(dataset_dir, cv_split, output_dir / "original")
+
+    # 2. Crop data + generate pickles -> replace output_dir
+    crop_dataset(output_dir / "original", output_dir / "cropped")
     print("Cropped")
 
     # 3. Calculate dataset stats
-    stats.update(compute_dataset_stats(cropped_dir, modality))
+    stats.update(compute_dataset_stats(output_dir / "cropped", modality))
     print("Stats Calculated")
 
     # 4. Normalize each image place new images in normalized
-    normalize_dataset(cropped_dir / "imagesTr", output_dir / "normalized", stats)
+    normalize_dataset(
+        output_dir / "cropped" / "imagesTr", output_dir / "normalized", stats
+    )
     print("Normalized")
 
     # 5. Resample to median voxel spacing -> place in dataset_dir / high_res
     stats["post_resample_shape"] = resample_dataset(
         output_dir / "normalized",
-        cropped_dir / "labelsTr",
-        cropped_dir / "imagesTr",
+        output_dir / "cropped" / "labelsTr",
+        output_dir / "cropped" / "picklesTr",
         output_dir / "high_res",
         stats["spacing"],
     )
@@ -285,8 +335,8 @@ def preprocess_dataset(dataset_dir: Path, output_dir: Path) -> Dict[Any, Any]:
 
         resample_dataset(
             output_dir / "normalized",
-            cropped_dir / "labelsTr",
-            cropped_dir / "imagesTr",
+            output_dir / "cropped" / "labelsTr",
+            output_dir / "cropped" / "picklesTr",
             output_dir / "low_res",
             stats["low_res_spacing"],
         )

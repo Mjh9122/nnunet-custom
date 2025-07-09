@@ -1,0 +1,90 @@
+Preprocessing Pipeline
+
+-> dataset
+    -> dataset.json
+    -> imagesTr
+        -> img1.nii.gz
+        -> img2.nii.gz
+        -> img3.nii.gz
+    -> labalsTr
+        -> img1.nii.gz
+        -> img2.nii.gz
+        -> img3.nii.gz
+
+Select CV 
+-> output
+    -> original 
+        -> imagesTr
+            -> img1.nii.gz
+            -> img2.nii.gz
+        -> labalsTr
+            -> img1.nii.gz
+            -> img2.nii.gz
+
+Crop 
+-> output
+    -> cropped
+        -> imagesTr
+            -> img1.nii.gz
+            -> img2.nii.gz
+        -> labalsTr
+            -> img1.nii.gz
+            -> img2.nii.gz
+        -> picklesTr
+            -> img1.pkl 
+            -> img2.pkl
+
+Normalize
+-> output
+    -> normalized
+        -> img1.nii.gz
+        -> img2.nii.gz
+
+Resample
+-> output
+    -> high_res
+        -> imagesTr
+            -> img1.nii.gz
+            -> img2.nii.gz
+        -> labalsTr
+            -> img1.nii.gz
+            -> img2.nii.gz
+
+Cascade 
+-> output
+    -> low_res
+        -> imagesTr
+            -> img1.nii.gz
+            -> img2.nii.gz
+        -> labalsTr
+            -> img1.nii.gz
+            -> img2.nii.gz
+
+Clean Up (Final State)
+-> dataset
+    -> dataset.json
+    -> imagesTr
+        -> img1.nii.gz
+        -> img2.nii.gz
+        -> img3.nii.gz
+    -> labalsTr
+        -> img1.nii.gz
+        -> img2.nii.gz
+        -> img3.nii.gz
+
+-> output
+    stats.pkl
+    -> high_res
+        -> imagesTr
+            -> img1.nii.gz
+            -> img2.nii.gz
+        -> labalsTr
+            -> img1.nii.gz
+            -> img2.nii.gz
+    -> low_res (if nessisary)
+        -> imagesTr
+            -> img1.nii.gz
+            -> img2.nii.gz
+        -> labalsTr
+            -> img1.nii.gz
+            -> img2.nii.gz

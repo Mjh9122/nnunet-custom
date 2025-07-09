@@ -43,7 +43,7 @@ def crop_zeros(image: NDArray, mask: NDArray) -> Tuple[NDArray, NDArray]:
     return cropped_img, cropped_mask
 
 
-def crop_dataset(dataset_dir: Path, output_dir: Path) -> Path:
+def crop_dataset(dataset_dir: Path, output_dir: Path):
     """Crops all images and labels in dataset, placing them in a temp folder in the output dir
 
     Args:
@@ -55,18 +55,21 @@ def crop_dataset(dataset_dir: Path, output_dir: Path) -> Path:
 
     images = os.listdir(image_path)
 
-    cropped_path = output_dir / "crops"
-    cropped_images_path = cropped_path / "imagesTr"
-    cropped_labels_path = cropped_path / "labelsTr"
+    cropped_images_path = output_dir / "imagesTr"
+    cropped_labels_path = output_dir / "labelsTr"
+    pickle_path = output_dir / "picklesTr"
 
-    if not os.path.exists(cropped_path):
-        os.mkdir(cropped_path)
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
 
     if not os.path.exists(cropped_images_path):
         os.mkdir(cropped_images_path)
 
     if not os.path.exists(cropped_labels_path):
         os.mkdir(cropped_labels_path)
+
+    if not os.path.exists(pickle_path):
+        os.mkdir(pickle_path)
 
     for image in tqdm(images):
         img = sitk.ReadImage(image_path / image)
@@ -95,7 +98,5 @@ def crop_dataset(dataset_dir: Path, output_dir: Path) -> Path:
         }
 
         stats_pkl = image.split(".")[0] + ".pkl"
-        with open(cropped_images_path / stats_pkl, "wb") as file:
+        with open(pickle_path / stats_pkl, "wb") as file:
             pkl.dump(stats, file)
-
-    return cropped_path

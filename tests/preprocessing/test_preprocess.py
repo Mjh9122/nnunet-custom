@@ -24,6 +24,7 @@ from preprocessing.preprocess import (
     lower_resolution,
     modality_detection,
     preprocess_dataset,
+    select_cv_fold,
 )
 
 TEST_DATA_DIR = Path(__file__).parent / "preprocess_data"
@@ -84,6 +85,69 @@ def test_lower_resolution(dims, spacing, expected):
     np.testing.assert_allclose(np.array(result), np.array(expected))
 
 
+def test_split_cv():
+    if os.path.exists(TEST_DATA_DIR):
+        if not os.path.isdir(TEST_DATA_DIR):
+            raise Exception(f"Test data path {TEST_DATA_DIR} is not a directory")
+    else:
+        os.mkdir(TEST_DATA_DIR)
+        os.mkdir(TEST_DATA_DIR / "a")
+        os.mkdir(TEST_DATA_DIR / "a" / "imagesTr")
+        os.mkdir(TEST_DATA_DIR / "a" / "labelsTr")
+        os.mkdir(TEST_DATA_DIR / "b")
+        os.mkdir(TEST_DATA_DIR / "b" / "imagesTr")
+        os.mkdir(TEST_DATA_DIR / "b" / "labelsTr")
+
+    # generate images, labels
+    for i in range(10):
+        with open(TEST_DATA_DIR / "a" / "imagesTr" / f"img{i}.nii.gz", "w") as f:
+            f.write(str(i))
+
+        with open(TEST_DATA_DIR / "a" / "labelsTr" / f"img{i}.nii.gz", "w") as f:
+            f.write(str(i))
+
+    select_cv_fold(
+        TEST_DATA_DIR / "a", [f"img{i}.nii.gz" for i in range(8)], TEST_DATA_DIR / "b"
+    )
+
+    assert set(os.listdir(TEST_DATA_DIR / "b" / "imagesTr")) == set(
+        [f"img{i}.nii.gz" for i in range(8)]
+    )
+    assert set(os.listdir(TEST_DATA_DIR / "b" / "labelsTr")) == set(
+        [f"img{i}.nii.gz" for i in range(8)]
+    )
+
+    with pytest.raises(Exception) as e_info:
+        select_cv_fold(
+            TEST_DATA_DIR / "b",
+            [f"img{i}.nii.gz" for i in range(10)],
+            TEST_DATA_DIR / "a",
+        )
+
+    assert (
+        e_info.value.args[0]
+        == "All images in images_list must be present in dataset_dir/imagesTr"
+    )
+
+    for i in range(8, 10):
+        with open(TEST_DATA_DIR / "b" / "imagesTr" / f"img{i}.nii.gz", "w") as f:
+            f.write(str(i))
+
+    with pytest.raises(Exception) as e_info:
+        select_cv_fold(
+            TEST_DATA_DIR / "b",
+            [f"img{i}.nii.gz" for i in range(10)],
+            TEST_DATA_DIR / "a",
+        )
+
+    assert (
+        e_info.value.args[0]
+        == "All images in images_list must be present in dataset_dir/labelsTr"
+    )
+
+    tear_down_dataset()
+
+
 def setup_dataset():
     if os.path.exists(TEST_DATA_DIR):
         if not os.path.isdir(TEST_DATA_DIR):
@@ -93,6 +157,7 @@ def setup_dataset():
         os.mkdir(TEST_DATA_DIR / "crops")
         os.mkdir(TEST_DATA_DIR / "crops" / "imagesTr")
         os.mkdir(TEST_DATA_DIR / "crops" / "labelsTr")
+        os.mkdir(TEST_DATA_DIR / "crops" / "picklesTr")
 
     precrop_dims = [
         [64, 32, 32],
@@ -123,7 +188,7 @@ def setup_dataset():
             "spacing": space,
         }
         pkl_file = f"test0{i + 1}.pkl"
-        with open(TEST_DATA_DIR / "crops" / "imagesTr" / pkl_file, "wb") as file:
+        with open(TEST_DATA_DIR / "crops" / "picklesTr" / pkl_file, "wb") as file:
             pkl.dump(stats, file)
 
     arrs = [np.random.randint(low=0, high=100, size=dims) for dims in postcrop_dims]
@@ -198,9 +263,11 @@ def test_reservoir_CT():
     os.mkdir(TEST_DATA_DIR)
     os.mkdir(TEST_DATA_DIR / "imagesTr")
     os.mkdir(TEST_DATA_DIR / "labelsTr")
+    os.mkdir(TEST_DATA_DIR / "picklesTr")
 
     images_path = TEST_DATA_DIR / "imagesTr"
     masks_path = TEST_DATA_DIR / "labelsTr"
+    pickles_path = TEST_DATA_DIR / "picklesTr"
 
     # Generate 0 - 100_000_000
     n = 10_000_000
@@ -224,7 +291,7 @@ def test_reservoir_CT():
         }
 
         pkl_file = f"test_img{i}.pkl"
-        with open(images_path / pkl_file, "wb") as file:
+        with open(pickles_path / pkl_file, "wb") as file:
             pkl.dump(stats, file)
 
     results = compute_dataset_stats(TEST_DATA_DIR, "CT")
@@ -343,7 +410,9 @@ def test_whole_preprocessing_pipeline(target_image_shape, needs_cascade):
     with open(dataset_dir / "dataset.json", "w") as file:
         json.dump(dataset_json, file)
 
-    stats = preprocess_dataset(dataset_dir, dataset_dir / "output")
+    stats = preprocess_dataset(
+        dataset_dir, os.listdir(dataset_dir / "imagesTr"), dataset_dir / "output"
+    )
 
     np.testing.assert_array_equal(stats["post_crop_shape"], target_image_shape)
     assert (stats.get("low_res_spacing") is not None) == needs_cascade
@@ -352,8 +421,8 @@ def test_whole_preprocessing_pipeline(target_image_shape, needs_cascade):
     output_directories = [
         dataset_dir / "imagesTr",
         dataset_dir / "labelsTr",
-        dataset_dir / "output" / "crops" / "imagesTr",
-        dataset_dir / "output" / "crops" / "labelsTr",
+        dataset_dir / "output" / "cropped" / "imagesTr",
+        dataset_dir / "output" / "cropped" / "labelsTr",
         dataset_dir / "output" / "normalized",
         dataset_dir / "output" / "high_res" / "imagesTr",
         dataset_dir / "output" / "high_res" / "labelsTr",

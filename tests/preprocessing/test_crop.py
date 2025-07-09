@@ -87,24 +87,17 @@ def setup_dataset():
 
 
 def tear_down_dataset():
-    """crop_data
-    -> crops
-        -> imagesTr
-        -> labelsTr
-    -> imagesTr
-    -> labelsTr
-    """
     shutil.rmtree(TEST_DATA_DIR)
 
 
 def test_crop_dataset():
     crops = setup_dataset()
-    results = crop_dataset(TEST_DATA_DIR, TEST_DATA_DIR)
+    crop_dataset(TEST_DATA_DIR, TEST_DATA_DIR / "cropped")
 
-    images = sorted([f for f in os.listdir(results / "imagesTr") if f[-3:] != "pkl"])
+    images = sorted(os.listdir(TEST_DATA_DIR / "cropped" / "imagesTr"))
     for crops, img in zip(crops, images):
-        cropped_img = sitk.ReadImage(results / "imagesTr" / img)
-        cropped_mask = sitk.ReadImage(results / "labelsTr" / img)
+        cropped_img = sitk.ReadImage(TEST_DATA_DIR / "cropped" / "imagesTr" / img)
+        cropped_mask = sitk.ReadImage(TEST_DATA_DIR / "cropped" / "labelsTr" / img)
 
         img_size = np.array(cropped_img.GetSize()[::-1])
         mask_size = np.array(cropped_mask.GetSize()[::-1])
