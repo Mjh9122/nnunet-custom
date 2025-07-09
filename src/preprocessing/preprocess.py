@@ -269,7 +269,7 @@ def modality_detection(json_path: Path) -> str:
 
 def preprocess_dataset(
     dataset_dir: Path, cv_split: List[str], output_dir: Path
-) -> Dict[Any, Any]:
+):
     """Preprocesses an entire dataset. preprocessed images are placed in the output directory
     and dataset statistics are returned for use in downstream tasks
 
@@ -277,9 +277,6 @@ def preprocess_dataset(
         dataset_dir (Path): Path to dataset directory should contain a dataset.json file, imagesTr, and labelsTr dirs
         cv_split (List[str]): List of image names in the dataset dir to preprocess
         output_dir (Path): Path to output directory. Finished numpy arrays are stored alongside metadata.
-
-    Returns:
-        Dict
     """
 
     if not os.path.exists(dataset_dir):
@@ -346,4 +343,11 @@ def preprocess_dataset(
         print("Low Res Resampled")
     stats["high_res_path"] = dataset_dir / "high_res"
 
-    return stats
+    # clean up output directory
+    shutil.rmtree(output_dir / 'original')
+    shutil.rmtree(output_dir / 'cropped')
+    shutil.rmtree(output_dir / 'normalized')
+
+    # Save dataset stats for later
+    with open(output_dir / 'dataset_stats', 'wb') as f:
+        pkl.dump(stats, f)

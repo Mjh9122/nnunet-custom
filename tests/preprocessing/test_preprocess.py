@@ -410,20 +410,18 @@ def test_whole_preprocessing_pipeline(target_image_shape, needs_cascade):
     with open(dataset_dir / "dataset.json", "w") as file:
         json.dump(dataset_json, file)
 
-    stats = preprocess_dataset(
+    preprocess_dataset(
         dataset_dir, os.listdir(dataset_dir / "imagesTr"), dataset_dir / "output"
     )
+
+    with open(dataset_dir / "output" / "dataset_stats.pkl", "rb") as file:
+        stats = json.load(file)
 
     np.testing.assert_array_equal(stats["post_crop_shape"], target_image_shape)
     assert (stats.get("low_res_spacing") is not None) == needs_cascade
     assert stats["modality"] == "Not CT"
 
     output_directories = [
-        dataset_dir / "imagesTr",
-        dataset_dir / "labelsTr",
-        dataset_dir / "output" / "cropped" / "imagesTr",
-        dataset_dir / "output" / "cropped" / "labelsTr",
-        dataset_dir / "output" / "normalized",
         dataset_dir / "output" / "high_res" / "imagesTr",
         dataset_dir / "output" / "high_res" / "labelsTr",
     ]

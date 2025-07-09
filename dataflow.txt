@@ -6,7 +6,7 @@ Preprocessing Pipeline
         -> img1.nii.gz
         -> img2.nii.gz
         -> img3.nii.gz
-    -> labalsTr
+    -> labelsTr
         -> img1.nii.gz
         -> img2.nii.gz
         -> img3.nii.gz
@@ -17,7 +17,7 @@ Select CV
         -> imagesTr
             -> img1.nii.gz
             -> img2.nii.gz
-        -> labalsTr
+        -> labelsTr
             -> img1.nii.gz
             -> img2.nii.gz
 
@@ -27,7 +27,7 @@ Crop
         -> imagesTr
             -> img1.nii.gz
             -> img2.nii.gz
-        -> labalsTr
+        -> labelsTr
             -> img1.nii.gz
             -> img2.nii.gz
         -> picklesTr
@@ -46,7 +46,7 @@ Resample
         -> imagesTr
             -> img1.nii.gz
             -> img2.nii.gz
-        -> labalsTr
+        -> labelsTr
             -> img1.nii.gz
             -> img2.nii.gz
 
@@ -56,7 +56,7 @@ Cascade
         -> imagesTr
             -> img1.nii.gz
             -> img2.nii.gz
-        -> labalsTr
+        -> labelsTr
             -> img1.nii.gz
             -> img2.nii.gz
 
@@ -67,7 +67,7 @@ Clean Up (Final State)
         -> img1.nii.gz
         -> img2.nii.gz
         -> img3.nii.gz
-    -> labalsTr
+    -> labelsTr
         -> img1.nii.gz
         -> img2.nii.gz
         -> img3.nii.gz
@@ -78,13 +78,13 @@ Clean Up (Final State)
         -> imagesTr
             -> img1.nii.gz
             -> img2.nii.gz
-        -> labalsTr
+        -> labelsTr
             -> img1.nii.gz
             -> img2.nii.gz
     -> low_res (if nessisary)
         -> imagesTr
             -> img1.nii.gz
             -> img2.nii.gz
-        -> labalsTr
+        -> labelsTr
             -> img1.nii.gz
             -> img2.nii.gz
