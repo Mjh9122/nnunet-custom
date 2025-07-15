@@ -26,7 +26,6 @@ NDArray = npt.NDArray[np.float32]
 CT_CLIP_VALUES = (0.5, 99.5)
 MAX_3D_PATCH_SIZE = (128, 128, 128)
 MIN_3D_BATCH_SIZE = 2
-CROPPING_NORMALIZATION_THRESHOLD = 0.25
 
 
 def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:

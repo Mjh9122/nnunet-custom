@@ -43,16 +43,19 @@ def normalize(
     """
     if modality == "CT":
         if dataset_stats is None:
-            raise Exception("dataset_stats cannot be None for CT datasets")
+            raise ValueError("dataset_stats cannot be None for CT datasets")
         mean, std = dataset_stats
 
         if clipping_percentiles is None:
-            raise Exception("clipping_percentiles cannot be None for CT datasets")
+            raise ValueError("clipping_percentiles cannot be None for CT datasets")
         low, high = clipping_percentiles
 
         # Ignore cropping threshold for CT images (normalize based on targets)
         image = np.clip(image, low, high)
-        image = (image - mean) / std
+        if std != 0:
+            image = (image - mean) / std
+        else:
+            image = image - mean
     else:
         if cropping_threshold_met:
             # Non-CT with cropping threshold met -> nonzeros

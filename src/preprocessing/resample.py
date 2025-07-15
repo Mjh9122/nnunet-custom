@@ -37,12 +37,12 @@ def resample_image(
         NDArray: resampled image
     """
     if len(old_spacing) != len(new_spacing):
-        raise (Exception("New and old spacings must have same length"))
+        raise ValueError("New and old spacings must have same length")
 
     old_dims = np.array(image.shape)
 
     if len(old_dims) != len(new_spacing):
-        raise (Exception("New spacing and image shape must have same length"))
+        raise ValueError("New spacing and image shape must have same length")
 
     new_dims = np.array(
         [
@@ -109,11 +109,11 @@ def resample_dataset(
         mask_np = sitk.GetArrayFromImage(mask)
 
         if img_np.shape != mask_np.shape:
-            raise Exception(
+            raise ValueError(
                 f"images and masks must be the same shape {img_np.shape} {mask_np.shape}"
             )
 
-        new_shapes.append(img_np.shape)
+        
 
         img_resampled_np = resample_image(
             img_np, orig_spacing, target_spacing, is_segmentation=False
@@ -121,6 +121,8 @@ def resample_dataset(
         mask_resampled_np = resample_image(
             mask_np, orig_spacing, target_spacing, is_segmentation=True
         )
+
+        new_shapes.append(img_resampled_np.shape)
 
         img_resampled = sitk.GetImageFromArray(img_resampled_np)
         mask_resampled = sitk.GetImageFromArray(mask_resampled_np)

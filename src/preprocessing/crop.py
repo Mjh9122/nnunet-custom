@@ -28,7 +28,10 @@ def crop_zeros(image: NDArray, mask: NDArray) -> Tuple[NDArray, NDArray]:
         Tuple[NDArray, NDArray]: cropped image, cropped mask
     """
     if image.shape != mask.shape:
-        raise Exception(f"Image shape {image.shape} must match mask shape {mask.shape}")
+        raise ValueError(f"Image shape {image.shape} must match mask shape {mask.shape}")
+    
+    if not np.abs(image).sum() > 0:
+        raise ValueError(f"Image must contain non-zero values")
 
     # Find indeces of all nonzero values
     nonzero = np.array(np.where(image != 0))
