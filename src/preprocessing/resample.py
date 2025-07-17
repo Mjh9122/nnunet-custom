@@ -113,8 +113,6 @@ def resample_dataset(
                 f"images and masks must be the same shape {img_np.shape} {mask_np.shape}"
             )
 
-        
-
         img_resampled_np = resample_image(
             img_np, orig_spacing, target_spacing, is_segmentation=False
         )

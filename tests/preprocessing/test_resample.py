@@ -191,13 +191,15 @@ def test_resample_directory():
 
     spacing = (3.0, 2.0, 2.0)
 
-    resample_dataset(
+    result = resample_dataset(
         TEST_DATA_DIR / "images",
         TEST_DATA_DIR / "labels",
         TEST_DATA_DIR / "pickles",
         TEST_DATA_DIR / "resampled",
         spacing,
     )
+
+    np.testing.assert_array_equal(np.array((29, 44, 44)), result)
 
     for i, image in enumerate(images):
         img = sitk.ReadImage(TEST_DATA_DIR / "resampled" / "imagesTr" / image)
