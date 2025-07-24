@@ -30,7 +30,7 @@ class Conv3DBlock(nn.Module):
     ):
         super().__init__()
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size, stride, padding)
-        self.norm = nn.InstanceNorm3d(out_channels)
+        self.norm = nn.InstanceNorm3d(out_channels, affine = True)
         self.activation = nn.LeakyReLU(negative_slope)
 
     def forward(self, x):

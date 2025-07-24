@@ -3,6 +3,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import numpy.typing as npt
 
+import torch
+
 MAX_3D_PATCH_VOXELS = 128**3
 MIN_3D_BATCH_SIZE = 2
 MAX_POOLING_LAYERS_2D = 6
@@ -13,30 +15,62 @@ MAX_3D_CHANNELS = 256
 MAX_2D_CHANNELS = 512
 STOPPING_SIZE = 8
 
-
-def determine_2d_patch_batch(
-    image_shape: Tuple[int, int, int],
-    image_spacing: Tuple[float, float, float],
-    total_voxels: int,
-) -> Tuple[Tuple[int, int], int]:
-    """Determines an appropriate patch and batch size for the 2d Unet.
-       Starts with (256, 256) and 42 and adjusts based on gpu memory available and maximum voxels per step
-
-       Adapts to median plane size of the image (using smallest in plane spacing, corrisponding to the highest resolution).
-       Tries to train entire slices by applying the above rule.
-
-       Patch size x Batch size < .05 x total_voxels
+def estimate_model_vram(channels: List[int], classes: int, dtype = torch.float32):
+    """Estimates the amount of memory used by a 3d Unet model based on channel and classes. Will be slightly off
+    when estimating parameter count on nets that have unequal pooling operations along spacial dimensions
 
     Args:
-        image_shape (Tuple[int, int, int]): dimmensions of incoming image
-        image_spacing (Tuple[float, float, float]): spacing of incoming image
-        total_voxels (int): total number of voxels in dataset
+        channels (List[int]): Channels after each down block. channels[0] should have the number of channels in orig. image
+        classes (int): Number of output classes
+        dtype (_type_, optional): Datatype of parameter weights. Defaults to torch.float32.
 
     Returns:
-        Tuple[Tuple[int, int], int]: (patch size, batch size)
+        int: number of bytes used up by a model with these specs
     """
-    aspect_ratio = 1 / np.array(image_spacing)
+    param_size = dtype.itemsize
+    
+    def params_per_down_block(in_channels, out_channels):
+        filter_params1 = 3 * 3 * 3 * in_channels + 1 + 2
+        filter_params2 = 3 * 3 * 3 * out_channels + 1 + 2
 
+        
+        return (filter_params1 + filter_params2) * out_channels
+
+    def params_per_up_block(in_channels, out_channels):
+        transposed_conv_params = (2 * 2 * 2 * in_channels + 1) * in_channels
+        filter_params1 = int(3 * 3 * 3 * in_channels * 1.5) + 1 + 2
+        filter_params2 = int(3 * 3 * 3 * out_channels) + 1 + 2
+
+        return (filter_params1 + filter_params2) * out_channels + transposed_conv_params
+
+    ins =  channels[:-1]
+    outs = channels[1:]
+    params_down = sum(params_per_down_block(i, o) for i, o in zip(ins, outs))
+
+    ins = channels[-1:1:-1]
+    outs = channels[-2:0:-1]
+    params_up = sum(params_per_up_block(i, o) for i, o in zip(ins, outs))
+    final_conv_params = (channels[1] + 1) * classes
+
+    return (params_down + params_up + final_conv_params) * param_size 
+
+
+
+def estimate_batch_vram(batch_size: int, channels: int, spatial_dims:Tuple[int, int, int], dtype: torch.dtype = torch.float32):
+    """ Estimates (calculates) the size of the largest data tensor as it passes through the U-net. This should occur when the 
+    feature map from the first down block passes through the skip connection and is concatenated to the corresponding conv block input
+    the final up block. Typically the channels will be 32 at the end of the first down block, and 64 entering the final up block. 
+
+    Args:
+        batch_size (int): number of patches per batch
+        channels (int): number of channels (total) in largest tensor (skip + up block)
+        spatial_dims (Tuple[int, int, int]): spacial dimensions of the largest tensor (typically patch size)
+        dtype (torch.dtype, optional): dtype of tensors for single element size calculation. Defaults to torch.float32.
+
+    Returns:
+        int: total number of bytes in the largest tensor
+    """
+    return batch_size * channels * np.prod(spatial_dims) * dtype.itemsize
 
 def determine_3d_patch_batch(
     image_shape: Tuple[int, int, int], total_voxels: int
@@ -119,26 +153,3 @@ def determine_channels_per_layer(
     )
 
 
-def generate_network_topologies(
-    median_image_shape: Tuple[int, int, int],
-    cascade_image_shape: Optional[Tuple[int, int, int]] = None,
-) -> Tuple[Dict, Dict, Dict]:
-    """Generates network topologies for 2d, 3d, and 3d cascade (if necessary) unets. Orchistrates other topology generation functions.
-    Logic for cascade shape is applied in preprocessing.
-
-    Args:
-        median_image_shape (Tuple[int, int, int]): Median dataset image shape
-        cascade_image_shape (Optional[Tuple[int, int, int]], optional): Median shape of low res image for cascade. Defaults to None.
-
-    Returns:
-        Tuple[Dict, Dict, Dict]: Configs for 2D, 3D, and Cascade Unets
-        Each dict contains:
-        'model_type': 'Unet2d' | 'Unet3d' | 'CascadeUnet3d',
-        'batch_size': int,
-        'patch_size': Tuple[int, ...],
-        'pooling_ops': Tuple[int, ...],
-        'channels': List[int]
-
-        In case that cascade should not be trained, batch + patch size, pooling ops and channels will be None
-    """
-    pass
