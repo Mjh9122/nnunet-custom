@@ -15,6 +15,7 @@ from topology_generation.topology_generation import (
     determine_3d_patch_batch,
     determine_channels_per_layer,
     determine_pooling_operations,
+    MAX_3D_PATCH_VOXELS
 )
 
 from models.models import Unet3D
@@ -45,13 +46,13 @@ def test_determine_pooling_ops(dims, expected):
 @pytest.mark.parametrize(
     "pooling_ops, expected",
     (
-        ((3, 3, 3), (32, 64, 128)),
-        ((3, 3), (32, 64, 128)),
-        ((5, 5, 5), (32, 64, 128, 256, 256)),
-        ((5, 5), (32, 64, 128, 256, 512)),
-        ((4, 5, 5), (32, 64, 128, 256, 256)),
-        ((6, 6), (32, 64, 128, 256, 512, 512)),
-        ((2, 5, 5), (32, 64, 128, 256, 256)),
+        ((3, 3, 3), [32, 64, 128]),
+        ((3, 3), [32, 64, 128]),
+        ((5, 5, 5), [32, 64, 128, 256, 256]),
+        ((5, 5), [32, 64, 128, 256, 512]),
+        ((4, 5, 5), [32, 64, 128, 256, 256]),
+        ((6, 6), [32, 64, 128, 256, 512, 512]),
+        ((2, 5, 5), [32, 64, 128, 256, 256]),
     ),
 )
 def test_channels_per_layer(pooling_ops, expected):
@@ -60,7 +61,7 @@ def test_channels_per_layer(pooling_ops, expected):
 
 
 @pytest.mark.parametrize(
-    "batch_size, channels, image_size, dtype", 
+    "batch_size, channels, image_size, dtype",
     (
         (2, 96, (128, 128, 128), torch.float32),
         (2, 96, (80, 192, 128), torch.float32),
@@ -70,7 +71,7 @@ def test_channels_per_layer(pooling_ops, expected):
     ),
 )
 def test_estimate_batch_vram(batch_size, channels, image_size, dtype):
-    tensor = torch.randn(size = (batch_size, channels, *image_size), dtype = dtype)
+    tensor = torch.randn(size=(batch_size, channels, *image_size), dtype=dtype)
 
     actual_mem = tensor.numel() * tensor.itemsize
 
@@ -82,14 +83,14 @@ def test_estimate_batch_vram(batch_size, channels, image_size, dtype):
 @pytest.mark.parametrize(
     "channels, classes",
     (
-        ([1, 16, 32, 64, 128, 256, 512], 2), 
-        ([1, 16, 32, 64, 128, 256, 512], 5), 
-        ([1, 16, 32, 64, 128, 256, 512], 64), 
+        ([1, 16, 32, 64, 128, 256, 512], 2),
+        ([1, 16, 32, 64, 128, 256, 512], 5),
+        ([1, 16, 32, 64, 128, 256, 512], 64),
         ([1, 16, 32, 64, 128, 256], 3),
         ([1, 16, 32, 64, 128], 3),
         ([1, 16, 32, 64], 3),
         ([1, 16, 32], 2),
-    )
+    ),
 )
 def test_estimate_model_vram(channels, classes):
     pooling_ops = tuple([len(channels) - 2 for _ in range(3)])
@@ -99,3 +100,32 @@ def test_estimate_model_vram(channels, classes):
     expected = sum(p.numel() for p in model.parameters()) * torch.float32.itemsize
 
     assert result == expected
+
+
+@pytest.mark.parametrize(
+    "image_size, total_voxels, mem_target_gb",
+    (
+        ((138, 169, 138), 750 * 138 * 169 * 138, 8),
+        ((115, 320, 232), 30 * 115 * 320 * 232, 8),
+        ((20, 320, 319), 48 * 20 * 320 * 319, 8),
+        ((482, 512, 512), 201 * 482 * 512 * 512, 8),
+        ((36, 50, 35), 394 * 36 * 50 * 35, 8),
+        ((252, 512, 512), 96 * 252 * 512 * 512, 8),
+        ((96, 512, 512), 420 * 96 * 512 * 512, 8),
+    ),
+)
+def test_determine_3d_patch_batch(image_size, total_voxels, mem_target_gb):
+    result_patch, result_batch = determine_3d_patch_batch(image_size, total_voxels, mem_target_gb)
+    
+    result_pool_ops = determine_pooling_operations(result_patch)
+    result_channels = determine_channels_per_layer(result_pool_ops)
+    # Test all specs from paper
+
+    assert np.prod(result_patch) * result_batch <= .05 * total_voxels
+    assert np.prod(result_batch) <= MAX_3D_PATCH_VOXELS
+
+    for dim, n in zip(result_patch, result_pool_ops):
+        assert dim % (2 ** n) == 0
+
+    assert estimate_batch_vram(result_batch, channels = 96, spatial_dims = result_patch) + \
+           estimate_model_vram(result_channels, classes = 10) < mem_target_gb * 1024 ** 3

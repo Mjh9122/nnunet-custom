@@ -30,7 +30,7 @@ class Conv3DBlock(nn.Module):
     ):
         super().__init__()
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size, stride, padding)
-        self.norm = nn.InstanceNorm3d(out_channels, affine = True)
+        self.norm = nn.InstanceNorm3d(out_channels, affine=True)
         self.activation = nn.LeakyReLU(negative_slope)
 
     def forward(self, x):
@@ -92,7 +92,7 @@ class UpBlock3D(nn.Module):
         skip_channels: int,
         out_channels: int,
         tconv_kernel_shape: Tuple[int, int, int] = (2, 2, 2),
-        tconv_stride: Tuple[int, int, int] = (2, 2, 2)
+        tconv_stride: Tuple[int, int, int] = (2, 2, 2),
     ):
         super().__init__()
 
@@ -126,30 +126,45 @@ class Unet3D(nn.Module):
         channels (List[int, ...]): Number of channels expected after each layer of downconv blocks.
                                    Channels are expected to double each layer up to a specified cap.
                                    Upconv blocks utilize the listed channels in reverse.
-        pooling_ops (Tuple[int, int, int]): Number of pooling ops along each spacial dimension. Ops are applied the the first n blocks. 
+        pooling_ops (Tuple[int, int, int]): Number of pooling ops along each spacial dimension. Ops are applied the the first n blocks.
         num_classes (int): Number of classes to predict in the final convolution layer
 
     """
-    def __init__(self, channels: List[int], pooling_ops: Tuple[int, int, int], num_classes: int):
+
+    def __init__(
+        self, channels: List[int], pooling_ops: Tuple[int, int, int], num_classes: int
+    ):
         super().__init__()
 
-        pool_ops_arr = np.array([np.concat((np.ones(n, int), np.zeros(np.max(pooling_ops) - n, int))) for n in pooling_ops])
+        pool_ops_arr = np.array(
+            [
+                np.concat((np.ones(n, int), np.zeros(np.max(pooling_ops) - n, int)))
+                for n in pooling_ops
+            ]
+        )
         pool_ops_arr += 1
         shapes_and_strides = [tuple(ops) for ops in pool_ops_arr.T]
 
         self.down_blocks = nn.ModuleList(
             [
                 DownBlock3D(in_channels, out_channels, shape_stride, shape_stride)
-                for (in_channels, out_channels, shape_stride) in zip(channels[:-2], channels[1:-1], shapes_and_strides)
+                for (in_channels, out_channels, shape_stride) in zip(
+                    channels[:-2], channels[1:-1], shapes_and_strides
+                )
             ]
         )
         self.bottom_conv1 = Conv3DBlock(channels[-2], channels[-1])
         self.bottom_conv2 = Conv3DBlock(channels[-1], channels[-1])
         self.up_blocks = nn.ModuleList(
             [
-                UpBlock3D(in_channels, skip_channels, out_channels, shape_stride, shape_stride)
+                UpBlock3D(
+                    in_channels, skip_channels, out_channels, shape_stride, shape_stride
+                )
                 for (in_channels, skip_channels, out_channels, shape_stride) in zip(
-                    channels[-1:1:-1], channels[-2:0:-1], channels[-2:0:-1], shapes_and_strides[::-1]
+                    channels[-1:1:-1],
+                    channels[-2:0:-1],
+                    channels[-2:0:-1],
+                    shapes_and_strides[::-1],
                 )
             ]
         )
