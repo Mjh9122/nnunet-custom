@@ -68,6 +68,7 @@ def test_channels_per_layer(pooling_ops, expected):
         (9, 96, (40, 56, 40), torch.float32),
         (4, 96, (20, 192, 192), torch.float32),
         (2, 96, (96, 160, 128), torch.float32),
+        (4, )
     ),
 )
 def test_estimate_batch_vram(batch_size, channels, image_size, dtype):
@@ -129,3 +130,28 @@ def test_determine_3d_patch_batch(image_size, total_voxels, mem_target_gb):
 
     assert estimate_batch_vram(result_batch, channels = 96, spatial_dims = result_patch) + \
            estimate_model_vram(result_channels, classes = 10) < mem_target_gb * 1024 ** 3
+    
+def test_memory_cuda():
+    if not torch.cuda.is_available():
+        return
+    
+    image_size = (482, 512, 512)
+    num_training_images = 200
+
+    total_voxels_estimate = num_training_images * np.prod(image_size)
+
+    result_patch, result_batch = determine_3d_patch_batch(image_size, total_voxels_estimate)
+
+    result_pooling_ops = determine_pooling_operations(result_patch)
+    result_channels = determine_channels_per_layer(result_pooling_ops)
+    result_channels.insert(0, 1)
+
+    print(result_channels)
+
+    result_net = Unet3D(result_channels, result_pooling_ops, num_classes = 10).to('cuda')
+    result_rand_batch = torch.randn((result_batch, 1, *result_patch)).to('cuda')
+
+    pre_pass_mem_check = torch.cuda.memory_allocated()
+    print(pre_pass_mem_check)
+
+    result_net(result_rand_batch)

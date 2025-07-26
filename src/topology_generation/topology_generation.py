@@ -57,13 +57,12 @@ def estimate_model_vram(channels: List[int], classes: int, dtype=torch.float32):
 
 def estimate_batch_vram(
     batch_size: int,
-    channels: int,
+    channels: list[int],
     spatial_dims: Tuple[int, int, int],
     dtype: torch.dtype = torch.float32,
 ):
-    """Estimates (calculates) the size of the largest data tensor as it passes through the U-net. This should occur when the
-    feature map from the first down block passes through the skip connection and is concatenated to the corresponding conv block input
-    the final up block. Typically the channels will be 32 at the end of the first down block, and 64 entering the final up block.
+    """ Estimates the total amount of memory needed for a forward pass of a batch through the Unet3D architecture. 
+    Includes saving all skip connections from the encoder, allongside the largest tensor at in the bottleneck. 
 
     Args:
         batch_size (int): number of patches per batch
@@ -74,14 +73,20 @@ def estimate_batch_vram(
     Returns:
         int: total number of bytes in the largest tensor
     """
-    return batch_size * channels * np.prod(spatial_dims) * dtype.itemsize
+    x, y, z = spatial_dims
+
+    #skip_cons = [batch_size * c * max(x // 2 ** i, 8) * max(y // 2 ** i, 8) * max(z // 2 ** i, 8) for (i, c) in enumerate(channels[1:])]
+    print([(batch_size, c, )])
+
+    #return batch_size * channels * np.prod(spatial_dims) * dtype.itemsize
 
 
 def determine_3d_patch_batch(
     image_shape: Tuple[int, int, int],
     total_voxels: int,
-    mem_target_gb: int = 8,
+    mem_target_gb: int = 4,
     output_classes: int = 8,
+    input_channels: int = 10
 ) -> Tuple[Tuple[int, int, int], int]:
     """Determines an appropriate patch and batch size for the 3d Unet
     Starts with (128, 128, 128) and 2.
@@ -96,6 +101,7 @@ def determine_3d_patch_batch(
         total_voxels (int): total number of voxels in dataset (estimated by median size * num images)
         mem_target_gp (int: optional): available vram in Gb for training. Defaults to 8
         output_classes (int: optional): number of classes in target. Defaults to 10 (overestimate)
+        input_channels (int: optional): number of channels in input image. Defaults to 10 (overestimate)
     Returns:
         Tuple[Tuple[int, int, int], int]: (patch size, batch size)
     """
@@ -110,6 +116,7 @@ def determine_3d_patch_batch(
 
     pooling_ops = determine_pooling_operations(patch_size)
     channels = determine_channels_per_layer(pooling_ops)
+    channels.insert(0, input_channels)
 
     new_patch_size = []
     for dim, n in zip(patch_size, pooling_ops):
@@ -126,8 +133,8 @@ def determine_3d_patch_batch(
     for dim, n in zip(patch_size, pooling_ops):
         assert dim % 2 ** 2 == 0
 
-    # Arbitrarily cap memory at 95% of goal, to allow some wiggle room
-    memory_target = (mem_target_gb * 1024 ** 3) * .95
+    # Arbitrarily cap memory at 90% of goal, to allow some wiggle room
+    memory_target = (mem_target_gb * 1024 ** 3) * .90
     model_vram = estimate_model_vram(channels, output_classes)
 
     mem_for_data = memory_target - model_vram
@@ -183,7 +190,7 @@ def determine_pooling_operations(
 
 def determine_channels_per_layer(pooling_operations: Tuple[int, ...]) -> List[int]:
     """Determines number of channels per layer
-    Number of channels double each layer starting at the number of initial channels with a maximum of 30 channels.
+    Number of channels double each layer starting with the num of input channels, then 32, doubling after until the max is hit. 
 
     Args:
         initial_channels (int): Number of channels in the original image
