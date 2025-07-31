@@ -52,7 +52,7 @@ def estimate_model_vram(channels: List[int], classes: int, dtype=torch.float32):
     params_up = sum(params_per_up_block(i, o) for i, o in zip(ins, outs))
     final_conv_params = (channels[1] + 1) * classes
 
-    return (params_down + params_up + final_conv_params) * param_size
+    return (params_down + params_up + final_conv_params) * param_size 
 
 
 def estimate_batch_vram(
@@ -74,8 +74,10 @@ def estimate_batch_vram(
     Returns:
         int: total number of bytes in the largest tensor
     """
-    return batch_size * channels * np.prod(spatial_dims) * dtype.itemsize
+    cat_tensors = batch_size * channels * np.prod(spatial_dims) * dtype.itemsize
+    conv_tensor = batch_size * 1/3 * channels * np.prod(spatial_dims) * dtype.itemsize
 
+    return 1.5 * (2 * cat_tensors + conv_tensor)
 
 def determine_3d_patch_batch(
     image_shape: Tuple[int, int, int],
@@ -126,9 +128,11 @@ def determine_3d_patch_batch(
     for dim, n in zip(patch_size, pooling_ops):
         assert dim % 2 ** 2 == 0
 
-    # Arbitrarily cap memory at 95% of goal, to allow some wiggle room
-    memory_target = (mem_target_gb * 1024 ** 3) * .95
+    # Arbitrarily cap memory at 75% of goal, to allow some wiggle room
+    memory_target = (mem_target_gb * 1024 ** 3) * .75
     model_vram = estimate_model_vram(channels, output_classes)
+    model_vram *= 4 # adam stores momentum and velocity for each param and we need gradients for all
+    
 
     mem_for_data = memory_target - model_vram
     single_image_memory = estimate_batch_vram(1, channels = 96, spatial_dims = patch_size)
@@ -201,5 +205,5 @@ def determine_channels_per_layer(pooling_operations: Tuple[int, ...]) -> List[in
 
     return [
         min(max_channels, INITIAL_CHANNELS * 2**i)
-        for i in range(max(pooling_operations))
+        for i in range(max(pooling_operations) + 1)
     ]

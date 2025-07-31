@@ -4,6 +4,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from torch.utils.checkpoint import checkpoint
+
 
 class Conv3DBlock(nn.Module):
     """Most basic 3D Unet building block
@@ -172,18 +174,30 @@ class Unet3D(nn.Module):
             in_channels=channels[1], out_channels=num_classes, kernel_size=1
         )
 
+    def _checkpoint_up_block(self, up_block, x, skip_features):
+        return up_block(x, skip_features)
+
+    def _checkpoint_down_block(self, down_block, x):
+        return down_block(x)
+
+    def _checkpoint_conv_block(self, conv_block, x):
+        return conv_block(x)
+
     def forward(self, x):
         skip_con_features = []
         for down_block in self.down_blocks:
-            x, skip = down_block(x)
+            x, skip = checkpoint(self._checkpoint_down_block, down_block, x, use_reentrant=False)
             skip_con_features.append(skip)
 
-        x = self.bottom_conv1(x)
-        x = self.bottom_conv2(x)
+        x = checkpoint(self._checkpoint_conv_block, self.bottom_conv1, x, use_reentrant=False)
+        x = checkpoint(self._checkpoint_conv_block, self.bottom_conv2, x, use_reentrant=False)
 
-        for up_block, feature_map in zip(self.up_blocks, skip_con_features[::-1]):
-            x = up_block(x, feature_map)
+        for up_block in self.up_blocks:
+            feature_map = skip_con_features.pop()
+            x = checkpoint(self._checkpoint_up_block, up_block, x, feature_map, use_reentrant=False)
+            del feature_map
 
-        x = self.final_conv(x)
 
+        x = checkpoint(self._checkpoint_conv_block, self.final_conv, x, use_reentrant=False)
+        
         return x
