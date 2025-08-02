@@ -41,7 +41,8 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
         Dict[str, Tuple[float, float]]: 'percentiles':(low:float, high:float),
                                         'stats':(mean:float, std:float),
                                         'shape':(int, int, int),
-                                        'spacing':(float, float, float)
+                                        'spacing':(float, float, float),
+                                        'num_images':int
 
     """
     if not os.path.exists(dataset_dir):
@@ -57,6 +58,7 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
 
     dataset_stats = {}
 
+    dataset_stats["num_images"] = len(images)
     # Aggregate dimensions and spacing for median calculations
     precrop_dims = []
     postcrop_dims = []

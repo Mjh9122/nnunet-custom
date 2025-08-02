@@ -2,8 +2,10 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
-
+import os
 import torch
+import pickle as pkl
+from pathlib import Path
 
 MAX_3D_PATCH_VOXELS = 128**3
 MIN_3D_BATCH_SIZE = 2
@@ -52,13 +54,15 @@ def estimate_model_vram(channels: List[int], classes: int, dtype=torch.float32):
     params_up = sum(params_per_up_block(i, o) for i, o in zip(ins, outs))
     final_conv_params = (channels[1] + 1) * classes
 
-    return (params_down + params_up + final_conv_params) * param_size 
+    return (params_down + params_up + final_conv_params) * param_size
 
 
 def estimate_batch_vram(
     batch_size: int,
     channels: int,
+    input_channels: int,
     spatial_dims: Tuple[int, int, int],
+    c: float = 3.0,
     dtype: torch.dtype = torch.float32,
 ):
     """Estimates (calculates) the size of the largest data tensor as it passes through the U-net. This should occur when the
@@ -68,19 +72,27 @@ def estimate_batch_vram(
     Args:
         batch_size (int): number of patches per batch
         channels (int): number of channels (total) in largest tensor (skip + up block)
+        input_channels (int): number of channels in the original image (stored concurrently and scales with batch)
         spatial_dims (Tuple[int, int, int]): spacial dimensions of the largest tensor (typically patch size)
+        c (float, optional): constant multiplier to adjust for workspace memory as a factor of input tensor size. Defaults to 3.0
         dtype (torch.dtype, optional): dtype of tensors for single element size calculation. Defaults to torch.float32.
 
     Returns:
         int: total number of bytes in the largest tensor
     """
-    cat_tensors = batch_size * channels * np.prod(spatial_dims) * dtype.itemsize
-    conv_tensor = batch_size * 1/3 * channels * np.prod(spatial_dims) * dtype.itemsize
+    conv_input_tensor = channels * np.prod(spatial_dims) * dtype.itemsize
+    conv_output_tensor = 1 / 3 * channels * np.prod(spatial_dims) * dtype.itemsize
+    net_input_tensor = input_channels * np.prod(spatial_dims) * dtype.itemsize
+    work_space_memory = c * conv_input_tensor
 
-    return 1.5 * (2 * cat_tensors + conv_tensor)
+    return batch_size * (
+        conv_input_tensor + conv_output_tensor + net_input_tensor + work_space_memory
+    )
+
 
 def determine_3d_patch_batch(
     image_shape: Tuple[int, int, int],
+    image_channels: int,
     total_voxels: int,
     mem_target_gb: int = 8,
     output_classes: int = 8,
@@ -95,6 +107,7 @@ def determine_3d_patch_batch(
 
     Args:
         image_shape (Tuple[int, int, int]): dimensions of incoming image
+        image_channels (int): channels of incoming image
         total_voxels (int): total number of voxels in dataset (estimated by median size * num images)
         mem_target_gp (int: optional): available vram in Gb for training. Defaults to 8
         output_classes (int: optional): number of classes in target. Defaults to 10 (overestimate)
@@ -112,41 +125,48 @@ def determine_3d_patch_batch(
 
     pooling_ops = determine_pooling_operations(patch_size)
     channels = determine_channels_per_layer(pooling_ops)
+    channels.insert(0, image_channels)
+    max_mem_channels = 96 if len(channels) < 3 else (channels[2] * 3 / 2)
 
     new_patch_size = []
     for dim, n in zip(patch_size, pooling_ops):
-        if dim % (2 ** n) != 0:
-            if dim % (2 ** n) >= 2 ** (n - 1):
-                new_patch_size.append(dim + (2 ** n - dim % (2 ** n)))
+        if dim % (2**n) != 0:
+            if dim % (2**n) >= 2 ** (n - 1):
+                new_patch_size.append(dim + (2**n - dim % (2**n)))
             else:
-                new_patch_size.append(dim - (dim % (2 ** n)))
+                new_patch_size.append(dim - (dim % (2**n)))
         else:
             new_patch_size.append(dim)
+
+    while np.prod(new_patch_size) > MAX_3D_PATCH_VOXELS:
+        min_channel = np.argmin(new_patch_size)
+        new_patch_size[min_channel] -= 2**n
 
     patch_size = tuple(new_patch_size)
 
     for dim, n in zip(patch_size, pooling_ops):
-        assert dim % 2 ** 2 == 0
+        assert dim % 2**2 == 0
 
-    # Arbitrarily cap memory at 75% of goal, to allow some wiggle room
-    memory_target = (mem_target_gb * 1024 ** 3) * .75
+    # Arbitrarily cap memory at 95% of goal, to allow some wiggle room
+    memory_target = (mem_target_gb * 1024**3) * 0.95
     model_vram = estimate_model_vram(channels, output_classes)
-    model_vram *= 4 # adam stores momentum and velocity for each param and we need gradients for all
-    
+    model_vram *= 4  # adam stores momentum and velocity for each param and we need gradients for all
 
     mem_for_data = memory_target - model_vram
-    single_image_memory = estimate_batch_vram(1, channels = 96, spatial_dims = patch_size)
+    single_image_memory = estimate_batch_vram(
+        1, max_mem_channels, image_channels, patch_size
+    )
 
     memory_max_batch = int(mem_for_data / single_image_memory)
-    data_vram = estimate_batch_vram(memory_max_batch, channels = 96, spatial_dims = patch_size)
+    data_vram = estimate_batch_vram(
+        memory_max_batch, max_mem_channels, image_channels, patch_size
+    )
 
     assert model_vram + data_vram < memory_target
     batch_size = memory_max_batch
 
-    
-
     # Hard upper bound on batch size
-    max_batch_5_percent = int((.05 * total_voxels)/np.prod(patch_size))
+    max_batch_5_percent = int((0.05 * total_voxels) / np.prod(patch_size))
     if batch_size > max_batch_5_percent:
         batch_size = max_batch_5_percent
 
@@ -207,3 +227,26 @@ def determine_channels_per_layer(pooling_operations: Tuple[int, ...]) -> List[in
         min(max_channels, INITIAL_CHANNELS * 2**i)
         for i in range(max(pooling_operations) + 1)
     ]
+
+
+def load_dataset_stats(pickle_path: Path) -> Tuple[Tuple[int, int, int], int]:
+    """Gets median image shape and estimated total voxels from dataset stat pickle
+
+    Args:
+        pickle_path (Path): path to dataset stat pickle
+
+    Returns:
+        Tuple[Tuple[int, int, int], int]: median image shape (int, int, int), estimated total voxels (int)
+    """
+    if not os.path.exists(pickle_path):
+        raise FileNotFoundError(f"Pickle file missing at {pickle_path}")
+
+    with open(pickle_path, "rb") as f:
+        stats = pkl.load(f)
+
+    assert "num_images" in stats
+    assert "post_resample_shape" in stats
+
+    total_voxels = np.prod(stats.get("post_resample_shape")) * stats.get("num_images")
+
+    return stats.get("post_resample_shape"), total_voxels

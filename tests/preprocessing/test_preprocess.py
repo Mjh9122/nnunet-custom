@@ -179,6 +179,7 @@ def setup_dataset():
         "pre_crop_shape": np.array([32, 16, 16]),
         "post_crop_shape": np.array([16, 16, 16]),
         "spacing": np.array([0.4, 0.4, 0.4]),
+        "num_images": len(precrop_dims),
     }
 
     for i, (pre, post, space) in enumerate(zip(precrop_dims, postcrop_dims, spacings)):
@@ -235,6 +236,7 @@ def test_compute_dataset_stats_no_CT():
     np.testing.assert_allclose(stats["pre_crop_shape"], solution["pre_crop_shape"])
     np.testing.assert_allclose(stats["post_crop_shape"], solution["post_crop_shape"])
     np.testing.assert_allclose(stats["spacing"], solution["spacing"])
+    assert stats["num_images"] == solution["num_images"]
 
 
 def test_compute_dataset_CT():

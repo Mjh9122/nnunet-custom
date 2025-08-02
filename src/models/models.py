@@ -186,18 +186,27 @@ class Unet3D(nn.Module):
     def forward(self, x):
         skip_con_features = []
         for down_block in self.down_blocks:
-            x, skip = checkpoint(self._checkpoint_down_block, down_block, x, use_reentrant=False)
+            x, skip = checkpoint(
+                self._checkpoint_down_block, down_block, x, use_reentrant=False
+            )
             skip_con_features.append(skip)
 
-        x = checkpoint(self._checkpoint_conv_block, self.bottom_conv1, x, use_reentrant=False)
-        x = checkpoint(self._checkpoint_conv_block, self.bottom_conv2, x, use_reentrant=False)
+        x = checkpoint(
+            self._checkpoint_conv_block, self.bottom_conv1, x, use_reentrant=False
+        )
+        x = checkpoint(
+            self._checkpoint_conv_block, self.bottom_conv2, x, use_reentrant=False
+        )
 
         for up_block in self.up_blocks:
             feature_map = skip_con_features.pop()
-            x = checkpoint(self._checkpoint_up_block, up_block, x, feature_map, use_reentrant=False)
+            x = checkpoint(
+                self._checkpoint_up_block, up_block, x, feature_map, use_reentrant=False
+            )
             del feature_map
 
+        x = checkpoint(
+            self._checkpoint_conv_block, self.final_conv, x, use_reentrant=False
+        )
 
-        x = checkpoint(self._checkpoint_conv_block, self.final_conv, x, use_reentrant=False)
-        
         return x
