@@ -363,11 +363,11 @@ def create_test_images(shape):
     return imgs, masks, spacings
 
 
-@pytest.mark.parametrize(
-    "target_image_shape, needs_cascade",
-    (((250, 200, 200), True), ((100, 50, 50), False)),
-)
-def test_whole_preprocessing_pipeline(target_image_shape, needs_cascade):
+@pytest.fixture()
+def full_pipeline_dataset(request):
+    params = request.param
+    target_image_shape = params['target_image_shape']
+
     if not os.path.exists(TEST_DATA_DIR):
         os.mkdir(TEST_DATA_DIR)
 
@@ -408,14 +408,27 @@ def test_whole_preprocessing_pipeline(target_image_shape, needs_cascade):
         ],
         "test": [],
     }
-
     with open(dataset_dir / "dataset.json", "w") as file:
         json.dump(dataset_json, file)
+
+    yield(dataset_dir, params)
+
+    tear_down_dataset()
+
+@pytest.mark.parametrize("full_pipeline_dataset",
+    [{"target_image_shape": (128, 256, 256), "needs_cascade":True}, 
+     {"target_image_shape": (100, 50, 50), "needs_cascade": False}],
+    indirect= True
+)
+def test_whole_preprocessing_pipeline(full_pipeline_dataset):
+    dataset_dir, params = full_pipeline_dataset 
+    target_image_shape = params['target_image_shape']
+    needs_cascade = params['needs_cascade']
 
     preprocess_dataset(
         dataset_dir, os.listdir(dataset_dir / "imagesTr"), dataset_dir / "output"
     )
-
+     
     with open(dataset_dir / "output" / "dataset_stats.pkl", "rb") as file:
         stats = pkl.load(file)
 
@@ -441,4 +454,3 @@ def test_whole_preprocessing_pipeline(target_image_shape, needs_cascade):
     for dir in output_directories:
         assert set(images).issubset(os.listdir(dir))
 
-    tear_down_dataset()

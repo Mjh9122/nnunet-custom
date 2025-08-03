@@ -16,9 +16,9 @@ import numpy.typing as npt
 import SimpleITK as sitk
 from tqdm import tqdm
 
-from .crop import crop_dataset
-from .normalize import normalize_dataset
-from .resample import resample_dataset
+from preprocessing.crop import crop_dataset
+from preprocessing.normalize import normalize_dataset
+from preprocessing.resample import resample_dataset
 
 np.random.seed(42)
 
@@ -211,7 +211,7 @@ def determine_cascade_necessity(median_shape: Tuple[int, int, int]) -> bool:
     max_voxels = np.array(MAX_3D_PATCH_SIZE).prod()
     current_voxels = np.array(median_shape).prod()
 
-    return current_voxels > 4 * max_voxels
+    return current_voxels >= 4 * max_voxels
 
 
 def lower_resolution(
