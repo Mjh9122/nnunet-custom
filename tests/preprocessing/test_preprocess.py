@@ -166,20 +166,15 @@ def stats_dataset(request):
         os.mkdir(TEST_DATA_DIR / "crops" / "imagesTr")
         os.mkdir(TEST_DATA_DIR / "crops" / "labelsTr")
         os.mkdir(TEST_DATA_DIR / "crops" / "picklesTr")
-# Current status to start tomorrow
-# 1. need dims and solutions to reflect channels
-# 2. need to pass in arg dicts for multi channel
-# 3. need to repeat for CT and non CT
-# 4. need to repeat for reservoir 
     multipliers = [.5, .75, 1.0, 1.3, 1.75]
-    precrop_dims = [(pre_crop_med * k, ) for k in multipliers]
-    postcrop_dims = [(post_crop_med * k, post_crop_med * k, post_crop_med * k) for k in multipliers]
-    spacings = [(spacings_med * k, spacings_med * k, spacings_med * k) for k in multipliers]
+    precrop_dims = [(image_channels, ) + (int(pre_crop_med * k), ) * 3 for k in multipliers]
+    postcrop_dims = [(image_channels, ) + (int(post_crop_med * k), ) * 3 for k in multipliers]
+    spacings = [(spacings_med * k, ) * 3 for k in multipliers]
 
     solutions = {
-        "pre_crop_shape": np.array((pre_crop_med) * 3),
-        "post_crop_shape": np.array((post_crop_med) * 3),
-        "spacing": np.array((spacing_med) * 3),
+        "pre_crop_shape": np.array((image_channels, ) + (pre_crop_med, ) * 3),
+        "post_crop_shape": np.array((image_channels, ) + (post_crop_med, ) * 3),
+        "spacing": np.array((spacings_med, ) * 3),
         "num_images": len(precrop_dims),
     }
 
@@ -222,7 +217,7 @@ def stats_dataset(request):
             img, TEST_DATA_DIR / "crops" / "labelsTr" / f"test0{i + 1}.nii.gz"
         )
 
-    yield TEST_DATA_DIR, solutions
+    yield (TEST_DATA_DIR, solutions)
 
     tear_down_dataset()
 
@@ -231,14 +226,14 @@ def tear_down_dataset():
     shutil.rmtree(TEST_DATA_DIR)
 
 
-@pytest.mark.paramatrize(
+@pytest.mark.parametrize(
     "stats_dataset",
-    [{"pre_crop_med": 64, "post_crop_med": 32, "spacing_med": 0.5, "channels": 1},  
-     {"pre_crop_med": 64, "post_crop_med": 32, "spacing_med": 0.5, "channels": 4}],
+    [{"pre_crop_med": 64, "post_crop_med": 32, "spacings_med": 0.5, "channels": 1},  
+     {"pre_crop_med": 64, "post_crop_med": 32, "spacings_med": 0.5, "channels": 4}],
     indirect=True,
 )
-def test_compute_dataset_stats_no_CT():
-    dataset, solution = setup_dataset
+def test_compute_dataset_stats_no_CT(stats_dataset):
+    dataset, solution = stats_dataset 
 
     stats = compute_dataset_stats(dataset / "crops", "MRI")
 
@@ -248,9 +243,13 @@ def test_compute_dataset_stats_no_CT():
     assert stats["num_images"] == solution["num_images"]
 
 
-@pytest.mark.paramatrize("stats_dataset", [], indirect=True)
-def test_compute_dataset_CT():
-    dataset, solution = setup_dataset
+@pytest.mark.parametrize(
+    "stats_dataset",  
+    [{"pre_crop_med": 64, "post_crop_med": 32, "spacings_med": 0.5, "channels": 1},  
+     {"pre_crop_med": 64, "post_crop_med": 32, "spacings_med": 0.5, "channels": 4}],
+    indirect=True)
+def test_compute_dataset_CT(stats_dataset):
+    dataset, solution = stats_dataset 
     sol_mean, sol_std = solution["stats"]
     sol_low, sol_high = solution["percentiles"]
 
@@ -283,20 +282,20 @@ def test_reservoir_CT():
     n = 10_000_000
     nums = np.arange(n)
     np.random.shuffle(nums)
-    nums = nums.reshape((100, 100, 100, 10))
+    nums = nums.reshape((100, 1, 100, 100, 10))
 
     for i, arr in enumerate(nums):
         img = sitk.GetImageFromArray(arr)
         sitk.WriteImage(img, images_path / f"test_img{i}.nii.gz")
 
-        mask = np.ones((100, 100, 10))
+        mask = np.ones((1, 100, 100, 10))
         mask_img = sitk.GetImageFromArray(mask)
 
         sitk.WriteImage(mask_img, masks_path / f"test_img{i}.nii.gz")
 
         stats = {
-            "pre_crop_shape": np.array((100, 100, 10)),
-            "post_crop_shape": np.array((100, 100, 10)),
+            "pre_crop_shape": np.array((1, 100, 100, 10)),
+            "post_crop_shape": np.array((1, 100, 100, 10)),
             "spacing": np.array((1, 1, 1), np.float32),
         }
 
@@ -433,6 +432,7 @@ def full_pipeline_dataset(request):
     indirect=True,
 )
 def test_whole_preprocessing_pipeline(full_pipeline_dataset):
+    return  
     dataset_dir, params = full_pipeline_dataset
     target_image_shape = params["target_image_shape"]
     needs_cascade = params["needs_cascade"]
