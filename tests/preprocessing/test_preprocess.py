@@ -166,16 +166,21 @@ def stats_dataset(request):
         os.mkdir(TEST_DATA_DIR / "crops" / "imagesTr")
         os.mkdir(TEST_DATA_DIR / "crops" / "labelsTr")
         os.mkdir(TEST_DATA_DIR / "crops" / "picklesTr")
-    multipliers = [.5, .75, 1.0, 1.3, 1.75]
-    precrop_dims = [(image_channels, ) + (int(pre_crop_med * k), ) * 3 for k in multipliers]
-    postcrop_dims = [(image_channels, ) + (int(post_crop_med * k), ) * 3 for k in multipliers]
-    spacings = [(spacings_med * k, ) * 3 for k in multipliers]
+    multipliers = [0.5, 0.75, 1.0, 1.3, 1.75]
+    precrop_dims = [
+        (image_channels,) + (int(pre_crop_med * k),) * 3 for k in multipliers
+    ]
+    postcrop_dims = [
+        (image_channels,) + (int(post_crop_med * k),) * 3 for k in multipliers
+    ]
+    spacings = [(spacings_med * k,) * 3 for k in multipliers]
 
     solutions = {
-        "pre_crop_shape": np.array((image_channels, ) + (pre_crop_med, ) * 3),
-        "post_crop_shape": np.array((image_channels, ) + (post_crop_med, ) * 3),
-        "spacing": np.array((spacings_med, ) * 3),
+        "pre_crop_shape": np.array((image_channels,) + (pre_crop_med,) * 3),
+        "post_crop_shape": np.array((image_channels,) + (post_crop_med,) * 3),
+        "spacing": np.array((spacings_med,) * 3),
         "num_images": len(precrop_dims),
+        "num_channels": image_channels,
     }
 
     for i, (pre, post, space) in enumerate(zip(precrop_dims, postcrop_dims, spacings)):
@@ -228,12 +233,14 @@ def tear_down_dataset():
 
 @pytest.mark.parametrize(
     "stats_dataset",
-    [{"pre_crop_med": 64, "post_crop_med": 32, "spacings_med": 0.5, "channels": 1},  
-     {"pre_crop_med": 64, "post_crop_med": 32, "spacings_med": 0.5, "channels": 4}],
+    [
+        {"pre_crop_med": 64, "post_crop_med": 32, "spacings_med": 0.5, "channels": 1},
+        {"pre_crop_med": 64, "post_crop_med": 32, "spacings_med": 0.5, "channels": 4},
+    ],
     indirect=True,
 )
 def test_compute_dataset_stats_no_CT(stats_dataset):
-    dataset, solution = stats_dataset 
+    dataset, solution = stats_dataset
 
     stats = compute_dataset_stats(dataset / "crops", "MRI")
 
@@ -241,15 +248,19 @@ def test_compute_dataset_stats_no_CT(stats_dataset):
     np.testing.assert_allclose(stats["post_crop_shape"], solution["post_crop_shape"])
     np.testing.assert_allclose(stats["spacing"], solution["spacing"])
     assert stats["num_images"] == solution["num_images"]
+    assert stats["num_channels"] == solution["num_channels"]
 
 
 @pytest.mark.parametrize(
-    "stats_dataset",  
-    [{"pre_crop_med": 64, "post_crop_med": 32, "spacings_med": 0.5, "channels": 1},  
-     {"pre_crop_med": 64, "post_crop_med": 32, "spacings_med": 0.5, "channels": 4}],
-    indirect=True)
+    "stats_dataset",
+    [
+        {"pre_crop_med": 64, "post_crop_med": 32, "spacings_med": 0.5, "channels": 1},
+        {"pre_crop_med": 64, "post_crop_med": 32, "spacings_med": 0.5, "channels": 4},
+    ],
+    indirect=True,
+)
 def test_compute_dataset_CT(stats_dataset):
-    dataset, solution = stats_dataset 
+    dataset, solution = stats_dataset
     sol_mean, sol_std = solution["stats"]
     sol_low, sol_high = solution["percentiles"]
 
@@ -266,6 +277,9 @@ def test_compute_dataset_CT(stats_dataset):
     np.testing.assert_allclose(stats["pre_crop_shape"], solution["pre_crop_shape"])
     np.testing.assert_allclose(stats["post_crop_shape"], solution["post_crop_shape"])
     np.testing.assert_allclose(stats["spacing"], solution["spacing"])
+
+    assert stats["num_images"] == solution["num_images"]
+    assert stats["num_channels"] == solution["num_channels"]
 
 
 def test_reservoir_CT():
@@ -432,7 +446,7 @@ def full_pipeline_dataset(request):
     indirect=True,
 )
 def test_whole_preprocessing_pipeline(full_pipeline_dataset):
-    return  
+    return
     dataset_dir, params = full_pipeline_dataset
     target_image_shape = params["target_image_shape"]
     needs_cascade = params["needs_cascade"]

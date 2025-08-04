@@ -66,19 +66,19 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
 
     for f in pkls:
         with open(pickle_path / f, "rb") as file:
-            stats = pkl.load(file) 
+            stats = pkl.load(file)
             precrop_dims.append(stats["pre_crop_shape"])
             postcrop_dims.append(stats["post_crop_shape"])
             spacings.append(stats["spacing"])
 
     precrop_dims = np.array(precrop_dims).T
-    assert len(set(precrop_dims[0])) == 1 # assert channels are all equal
-    assert len(precrop_dims[:, 0]) == 4 # assert 3 spatial dims and channel dim
+    assert len(set(precrop_dims[0])) == 1  # assert channels are all equal
+    assert len(precrop_dims[:, 0]) == 4  # assert 3 spatial dims and channel dim
     dataset_stats["pre_crop_shape"] = np.median(precrop_dims, 1)
+    dataset_stats["num_channels"] = dataset_stats["pre_crop_shape"][0]
 
-    
     postcrop_dims = np.array(postcrop_dims).T
-    assert len(set(postcrop_dims[0])) == 1 # assert channels are all equal
+    assert len(set(postcrop_dims[0])) == 1  # assert channels are all equal
     dataset_stats["pre_crop_shape"] = np.median(precrop_dims, 1)
     dataset_stats["post_crop_shape"] = np.median(postcrop_dims, 1)
 
@@ -95,7 +95,7 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
             if image not in labels:
                 raise (
                     Exception(
-                        f"All files in image directory must have a corrisponding segmentation mask. {image} was not found in {label_path}"
+                        f"All files in image directory must have a corresponding segmentation mask. {image} was not found in {label_path}"
                     )
                 )
 
