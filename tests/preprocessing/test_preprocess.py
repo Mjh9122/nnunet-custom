@@ -148,7 +148,15 @@ def test_split_cv():
     tear_down_dataset()
 
 
-def setup_dataset():
+@pytest.fixture()
+def stats_dataset(request):
+    params = request.param
+
+    pre_crop_med = params["pre_crop_med"]
+    post_crop_med = params["post_crop_med"]
+    spacings_med = params["spacings_med"]
+    image_channels = params["channels"]
+
     if os.path.exists(TEST_DATA_DIR):
         if not os.path.isdir(TEST_DATA_DIR):
             raise Exception(f"Test data path {TEST_DATA_DIR} is not a directory")
@@ -158,27 +166,20 @@ def setup_dataset():
         os.mkdir(TEST_DATA_DIR / "crops" / "imagesTr")
         os.mkdir(TEST_DATA_DIR / "crops" / "labelsTr")
         os.mkdir(TEST_DATA_DIR / "crops" / "picklesTr")
-
-    precrop_dims = [
-        [64, 32, 32],
-        [64, 32, 32],
-        [32, 16, 16],
-        [32, 16, 16],
-        [16, 16, 16],
-    ]
-    postcrop_dims = [[32, 32, 32], [16, 16, 16], [16, 16, 16], [16, 16, 16], [8, 8, 8]]
-    spacings = [
-        [0.5, 0.5, 0.5],
-        [0.4, 0.3, 0.2],
-        [0.4, 0.4, 0.4],
-        [1.0, 1.0, 1.0],
-        [0.2, 0.2, 0.2],
-    ]
+# Current status to start tomorrow
+# 1. need dims and solutions to reflect channels
+# 2. need to pass in arg dicts for multi channel
+# 3. need to repeat for CT and non CT
+# 4. need to repeat for reservoir 
+    multipliers = [.5, .75, 1.0, 1.3, 1.75]
+    precrop_dims = [(pre_crop_med * k, ) for k in multipliers]
+    postcrop_dims = [(post_crop_med * k, post_crop_med * k, post_crop_med * k) for k in multipliers]
+    spacings = [(spacings_med * k, spacings_med * k, spacings_med * k) for k in multipliers]
 
     solutions = {
-        "pre_crop_shape": np.array([32, 16, 16]),
-        "post_crop_shape": np.array([16, 16, 16]),
-        "spacing": np.array([0.4, 0.4, 0.4]),
+        "pre_crop_shape": np.array((pre_crop_med) * 3),
+        "post_crop_shape": np.array((post_crop_med) * 3),
+        "spacing": np.array((spacing_med) * 3),
         "num_images": len(precrop_dims),
     }
 
@@ -221,17 +222,25 @@ def setup_dataset():
             img, TEST_DATA_DIR / "crops" / "labelsTr" / f"test0{i + 1}.nii.gz"
         )
 
-    return solutions
+    yield TEST_DATA_DIR, solutions
+
+    tear_down_dataset()
 
 
 def tear_down_dataset():
     shutil.rmtree(TEST_DATA_DIR)
 
 
+@pytest.mark.paramatrize(
+    "stats_dataset",
+    [{"pre_crop_med": 64, "post_crop_med": 32, "spacing_med": 0.5, "channels": 1},  
+     {"pre_crop_med": 64, "post_crop_med": 32, "spacing_med": 0.5, "channels": 4}],
+    indirect=True,
+)
 def test_compute_dataset_stats_no_CT():
-    solution = setup_dataset()
+    dataset, solution = setup_dataset
 
-    stats = compute_dataset_stats(TEST_DATA_DIR / "crops", "MRI")
+    stats = compute_dataset_stats(dataset / "crops", "MRI")
 
     np.testing.assert_allclose(stats["pre_crop_shape"], solution["pre_crop_shape"])
     np.testing.assert_allclose(stats["post_crop_shape"], solution["post_crop_shape"])
@@ -239,8 +248,9 @@ def test_compute_dataset_stats_no_CT():
     assert stats["num_images"] == solution["num_images"]
 
 
+@pytest.mark.paramatrize("stats_dataset", [], indirect=True)
 def test_compute_dataset_CT():
-    solution = setup_dataset()
+    dataset, solution = setup_dataset
     sol_mean, sol_std = solution["stats"]
     sol_low, sol_high = solution["percentiles"]
 
@@ -257,8 +267,6 @@ def test_compute_dataset_CT():
     np.testing.assert_allclose(stats["pre_crop_shape"], solution["pre_crop_shape"])
     np.testing.assert_allclose(stats["post_crop_shape"], solution["post_crop_shape"])
     np.testing.assert_allclose(stats["spacing"], solution["spacing"])
-
-    tear_down_dataset()
 
 
 def test_reservoir_CT():
@@ -366,7 +374,7 @@ def create_test_images(shape):
 @pytest.fixture()
 def full_pipeline_dataset(request):
     params = request.param
-    target_image_shape = params['target_image_shape']
+    target_image_shape = params["target_image_shape"]
 
     if not os.path.exists(TEST_DATA_DIR):
         os.mkdir(TEST_DATA_DIR)
@@ -411,24 +419,28 @@ def full_pipeline_dataset(request):
     with open(dataset_dir / "dataset.json", "w") as file:
         json.dump(dataset_json, file)
 
-    yield(dataset_dir, params)
+    yield (dataset_dir, params)
 
     tear_down_dataset()
 
-@pytest.mark.parametrize("full_pipeline_dataset",
-    [{"target_image_shape": (128, 256, 256), "needs_cascade":True}, 
-     {"target_image_shape": (100, 50, 50), "needs_cascade": False}],
-    indirect= True
+
+@pytest.mark.parametrize(
+    "full_pipeline_dataset",
+    [
+        {"target_image_shape": (128, 256, 256), "needs_cascade": True},
+        {"target_image_shape": (100, 50, 50), "needs_cascade": False},
+    ],
+    indirect=True,
 )
 def test_whole_preprocessing_pipeline(full_pipeline_dataset):
-    dataset_dir, params = full_pipeline_dataset 
-    target_image_shape = params['target_image_shape']
-    needs_cascade = params['needs_cascade']
+    dataset_dir, params = full_pipeline_dataset
+    target_image_shape = params["target_image_shape"]
+    needs_cascade = params["needs_cascade"]
 
     preprocess_dataset(
         dataset_dir, os.listdir(dataset_dir / "imagesTr"), dataset_dir / "output"
     )
-     
+
     with open(dataset_dir / "output" / "dataset_stats.pkl", "rb") as file:
         stats = pkl.load(file)
 
@@ -453,4 +465,3 @@ def test_whole_preprocessing_pipeline(full_pipeline_dataset):
 
     for dir in output_directories:
         assert set(images).issubset(os.listdir(dir))
-

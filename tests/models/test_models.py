@@ -209,8 +209,8 @@ def test_Unet3D(
     num_classes,
     expected_shape,
 ):
-    if device != 'cuda' and np.prod(input_shape) > 64 ** 3:
-        return 
+    if device != "cuda" and np.prod(input_shape) > 64**3:
+        return
     input = torch.randn(input_shape).to(device)
 
     net = Unet3D(channels, pooling_ops, num_classes).to(device)

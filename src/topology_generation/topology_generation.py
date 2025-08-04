@@ -174,7 +174,7 @@ def determine_3d_patch_batch(
 
 
 def determine_pooling_operations(
-    median_image_shape: Tuple[int, ...]
+    median_image_shape: Tuple[int, ...],
 ) -> Tuple[int, ...]:
     """Determines the number of pooling operations applied to each axis. Stops when axis length is less than STOPPING_SIZE or the
     number of pooling operations is higher than 5 or 6 depending on 2d vs 3d nets.
