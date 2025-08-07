@@ -22,54 +22,104 @@ TEST_DATA_DIR = TEST_DATA_DIR = Path(__file__).parent / "normalize_data"
 
 
 def test_normalize_ct_withzeros():
-    img = np.zeros((4, 4), np.float32)
-    img[1:3, 1:3] = np.arange(1, 5).reshape((2, 2))
+    img = np.zeros((1, 4, 4, 4), dtype=np.float32)
+    nonzeros = np.arange(16).reshape(1, 4, 2, 2)
+    img[:, :, 1:3, 1:3] = nonzeros
 
-    result = normalize(img, "CT", False, (2.0, 2.0), (1.0, 3.0))
+    clipping_thresh = (2.0, 14.0)
+    mean_std = (5.0, 6.0)
 
-    expected = np.ones((4, 4), np.float32) * -1 / 2
-    expected[1, 2] = 0
-    expected[2, [1, 2]] = 1 / 2
+    result = normalize(
+        img,
+        "CT",
+        cropping_threshold_met=False,
+        dataset_stats=mean_std,
+        clipping_percentiles=clipping_thresh,
+    )
+
+    expected = np.clip(img, *clipping_thresh)
+    expected -= mean_std[0]
+    expected /= mean_std[1]    
 
     np.testing.assert_allclose(expected, result)
 
 
 def test_normalize_non_ct_nonzeros():
-    img = np.zeros((4, 4), np.float32)
-    img[1:3, 1:3] = np.arange(1, 5).reshape((2, 2))
+    img = np.zeros((1, 4, 4, 4), dtype=np.float32)
+    nonzeros = np.arange(16).reshape(1, 4, 2, 2)
+    img[:, :, 1:3, 1:3] = nonzeros
 
-    result = normalize(img, "MRI", True)
+    result = normalize(
+        img,
+        "MRI",
+        cropping_threshold_met = False
+    )
 
-    expected = np.zeros((4, 4), np.float32)
-    expected[1, 1] = -1.5 / np.sqrt(5 / 4)
-    expected[1, 2] = -0.5 / np.sqrt(5 / 4)
-    expected[2, 1] = 0.5 / np.sqrt(5 / 4)
-    expected[2, 2] = 1.5 / np.sqrt(5 / 4)
-
-    np.testing.assert_allclose(expected, result)
-
-
-def test_normalize_non_ct_withzeros():
-    img = np.zeros((4, 4), np.float32)
-    img[1:3, 1:3] = np.arange(1, 5).reshape((2, 2))
-
-    result = normalize(img, "MRI", False)
-
-    expected = np.ones((4, 4), np.float32) * -(10 / 16) / np.sqrt(95 / 64)
-    expected[1, 1] = (6 / 16) / np.sqrt(95 / 64)
-    expected[1, 2] = (22 / 16) / np.sqrt(95 / 64)
-    expected[2, 1] = (38 / 16) / np.sqrt(95 / 64)
-    expected[2, 2] = (54 / 16) / np.sqrt(95 / 64)
+    expected = img.copy()
+    expected -= img.mean()
+    expected /= img.std()       
 
     np.testing.assert_allclose(expected, result)
 
+def test_normalize_multichannel():
+    img = np.zeros((3, 4, 4, 4), dtype = np.float32)
+    nonzeros = np.arange(24).reshape((3, 2, 2, 2))
+    img[:, 1:3, 1:3, 1:3] = nonzeros
+
+    result = normalize(
+        img, 
+        "MRI",
+        cropping_threshold_met = False
+    )
+
+    expected = img.copy()
+    expected -= img.mean(axis = (1, 2, 3)).reshape((3, 1, 1, 1))
+    expected /= img.std(axis = (1, 2, 3)).reshape((3, 1, 1, 1))
+
+    np.testing.assert_allclose(expected, result)
+
+def test_threshold_single_channel():
+    img = np.zeros((1, 4, 4, 4), dtype=np.float32)
+    nonzeros = np.arange(16).reshape(1, 4, 2, 2)
+    img[:, :, 1:3, 1:3] = nonzeros
+
+    result = normalize(
+        img,
+        "MRI",
+        cropping_threshold_met = True
+    )
+
+    expected = img.copy()
+    expected -= img[img != 0].mean()
+    expected /= img[img != 0].std()       
+
+    np.testing.assert_allclose(expected, result)
+
+def test_threshold_multi_channel():
+    img = np.zeros((3, 4, 4, 4), dtype=np.float32)
+    nonzeros = np.arange(48).reshape(3, 4, 2, 2)
+    img[:, :, 1:3, 1:3] = nonzeros
+
+    result = normalize(
+        img,
+        "MRI",
+        cropping_threshold_met = True
+    )
+
+    for i, channel in enumerate(img):
+        expected = channel.copy()
+        expected -= channel[channel != 0].mean()
+        expected /= channel[channel != 0].std()       
+        np.testing.assert_allclose(result[i], expected)
+
+    
 
 def test_incorrect_params():
     with pytest.raises(Exception):
-        normalize(np.ones((10, 10, 10)), "CT", True, dataset_stats=(1, 1))
+        normalize(np.ones((1, 10, 10, 10)), "CT", True, dataset_stats=(1, 1))
 
     with pytest.raises(Exception):
-        normalize(np.ones((10, 10, 10)), "CT", True, clipping_percentiles=(1, 1))
+        normalize(np.ones((1, 10, 10, 10)), "CT", True, clipping_percentiles=(1, 1))
 
 
 def setup_dataset():
@@ -80,17 +130,9 @@ def setup_dataset():
         os.mkdir(TEST_DATA_DIR)
         os.mkdir(TEST_DATA_DIR / "crops")
 
-    arr1 = np.zeros((3, 4), np.float32)
-    arr1[1, [0, 3]] = 1
-    arr1[1, [1, 2]] = 3
-
-    arr2 = np.zeros((3, 4), np.float32)
-    arr2[1, 2] = 1
-    arr2[1, 3] = 5
-
-    arr3 = np.zeros((3, 4), np.float32)
-    arr3[1, 2] = 4
-    arr3[1, 3] = 6
+    arr1 = np.random.randint(-128, 1000, (4, 64, 64, 64))
+    arr2 = np.random.randint(-128, 1000, (4, 64, 64, 64))
+    arr3 = np.random.randint(-128, 1000, (4, 64, 64, 64))
 
     arrs = [arr1, arr2, arr3]
 
@@ -99,20 +141,29 @@ def setup_dataset():
         sitk.WriteImage(img, TEST_DATA_DIR / "crops" / f"test0{i}.nii.gz")
 
     # CT args
-    mean, std, low, high = 2, 2, 1, 4
+    mean, std, low, high = 250, 100, 0, 256
     CT_map = np.vectorize(
-        {i: ((min(max(i, low), high) - mean) / std) for i in range(7)}.get
+        {i: ((min(max(i, low), high) - mean) / std) for i in range(-128, 1001)}.get
     )
     CT_solutions = [CT_map(arr) for arr in arrs]
 
     threshold_solutions = []
-    for arr in arrs:
-        sol = arr.copy()
-        sol[sol != 0] = (sol[sol != 0] - sol[sol != 0].mean()) / sol[sol != 0].std()
-        threshold_solutions.append(sol)
+    for img in arrs: 
+        solution = np.zeros_like(img) 
+        for i, channel in enumerate(img):
+            expected = channel.astype(float)
+            expected -= channel[channel != 0].mean()
+            expected /= channel[channel != 0].std()       
+            solution[i] = expected
+        threshold_solutions.append(solution)
 
-    no_threshold_solutions = [(arr - arr.mean()) / arr.std() for arr in arrs]
 
+    no_threshold_solutions = []
+    for img in arrs: 
+        solution = np.zeros_like(img) 
+        for i, channel in enumerate(img):
+            expected = channel.astype(float)
+            solution[i] = (expected - channel.mean())/channel.std()
     return CT_solutions, threshold_solutions, no_threshold_solutions
 
 
@@ -135,8 +186,8 @@ def test_normalize_dataset():
         TEST_DATA_DIR / "crops",
         TEST_DATA_DIR / "CT",
         {
-            "stats": (2.0, 2.0),
-            "percentiles": (1.0, 4.0),
+            "stats": (250, 100),
+            "percentiles": (0, 256),
             "modality": "CT",
             "cropping_threshold_met": True,
         },

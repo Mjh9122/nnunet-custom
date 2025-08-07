@@ -41,6 +41,8 @@ def normalize(
     Returns:
         NDArray: normalized image
     """
+    assert len(image.shape) == 4
+
     if modality == "CT":
         if dataset_stats is None:
             raise ValueError("dataset_stats cannot be None for CT datasets")
@@ -59,12 +61,17 @@ def normalize(
     else:
         if cropping_threshold_met:
             # Non-CT with cropping threshold met -> nonzeros
-            nonzero = image[image != 0]
-            mean, std = nonzero.mean(), nonzero.std()
-            image[image != 0] = (image[image != 0] - mean) / std
+            normalized = np.zeros_like(image)
+            for i, img in enumerate(image):
+                nonzero = img[img != 0]
+                mean = nonzero.mean()
+                std = nonzero.std()
+                normalized[i] = (img - mean) / std
+            image = normalized
         else:
             # Non-CT without cropping threshold met -> nothing special
-            mean, std = image.mean(), image.std()
+            mean = image.mean(axis = (1, 2, 3)).reshape((-1, 1, 1, 1)) 
+            std = image.std(axis = (1, 2, 3)).reshape((-1, 1, 1, 1))
             image = (image - mean) / std
     return image
 
