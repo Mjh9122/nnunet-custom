@@ -55,14 +55,15 @@ def test_modality_dectection_file_nonexistent():
 @pytest.mark.parametrize(
     "input, expected",
     (
-        ((115, 320, 232), True),
-        ((482, 512, 512), True),
-        ((138, 169, 138), False),
-        ((382, 512, 512), True),
-        ((36, 50, 35), False),
-        ((20, 320, 319), False),
-        ((252, 512, 512), True),
-        ((96, 512, 512), True),
+        ((1, 115, 320, 232), True),
+        ((1, 482, 512, 512), True),
+        ((1, 138, 169, 138), False),
+        ((1, 382, 512, 512), True),
+        ((1, 36, 50, 35), False),
+        ((1, 20, 320, 319), False),
+        ((1, 252, 512, 512), True),
+        ((1, 96, 512, 512), True),
+        ((5, 128, 128, 128), True),
     ),
 )
 def test_cascade_necessity(input, expected):
@@ -74,10 +75,10 @@ def test_cascade_necessity(input, expected):
 @pytest.mark.parametrize(
     "dims, spacing, expected",
     (
-        ((512, 512, 400), (1.0, 1.0, 1.0), (4.0, 4.0, 4.0)),
-        ((320, 320, 100), (0.5, 0.5, 2.0), (1.0, 1.0, 2.0)),
-        ((1024, 1024, 64), (0.125, 0.125, 1.0), (0.5, 0.5, 1.0)),
-        ((400, 400, 150), (0.8, 0.8, 2.5), (1.6, 1.6, 2.5)),
+        ((1, 512, 512, 400), (1.0, 1.0, 1.0), (4.0, 4.0, 4.0)),
+        ((1, 320, 320, 100), (0.5, 0.5, 2.0), (1.0, 1.0, 2.0)),
+        ((1, 1024, 1024, 64), (0.125, 0.125, 1.0), (0.5, 0.5, 1.0)),
+        ((1, 400, 400, 150), (0.8, 0.8, 2.5), (1.6, 1.6, 2.5)),
     ),
 )
 def test_lower_resolution(dims, spacing, expected):
@@ -352,29 +353,34 @@ def test_preprocess_bad_dataset():
 
 
 def create_test_images(shape):
+    assert len(shape) == 4
+    channels, *spatial = shape
+
     spacings = [
         (0.5, 0.25, 0.25),
-        (0.1, 0.1, 0.1),
+        (0.3, 0.3, 0.3),
         (1.0, 1.0, 1.0),
         (2.0, 1.0, 1.0),
         (1.0, 0.5, 0.5),
     ]
     median_spacing = np.median(np.array(spacings).T, axis=1)
 
-    dim_multiplier = [np.array(s) / median_spacing for s in spacings]
+    dim_multiplier = [median_spacing / np.array(s) for s in spacings]
 
-    orig_dims = (np.array(shape) * np.array(dim_multiplier)).astype(int)
+    orig_dims = (np.array(spatial) * np.array(dim_multiplier)).astype(int)
+    orig_dims = np.concat(
+        [np.ones((len(spacings), 1), dtype=int) * channels, orig_dims], axis=1
+    )
 
     non_zeros = [np.random.randint(0, 1000, dims) for dims in orig_dims]
-
-    zero_buffers = [np.zeros(dims + np.array((10, 10, 10))) for dims in orig_dims]
+    zero_buffers = [np.zeros(dims + np.array((0, 10, 10, 10))) for dims in orig_dims]
 
     imgs = []
     masks = []
 
     for non_zero, buffer in zip(non_zeros, zero_buffers):
         img = buffer.copy()
-        img[5:-5, 5:-5, 5:-5] = non_zero
+        img[:, 5:-5, 5:-5, 5:-5] = non_zero
 
         mask = buffer.copy()
 
@@ -402,6 +408,8 @@ def full_pipeline_dataset(request):
     imgs, masks, spacings = create_test_images(target_image_shape)
 
     for i, (img, mask, spacing) in enumerate(zip(imgs, masks, spacings)):
+        print(img.shape, mask.shape, spacing)
+
         img_sitk = sitk.GetImageFromArray(img)
         img_sitk.SetSpacing(spacing)
 
@@ -440,13 +448,12 @@ def full_pipeline_dataset(request):
 @pytest.mark.parametrize(
     "full_pipeline_dataset",
     [
-        {"target_image_shape": (128, 256, 256), "needs_cascade": True},
-        {"target_image_shape": (100, 50, 50), "needs_cascade": False},
+        {"target_image_shape": (4, 150, 128, 128), "needs_cascade": True},
+        {"target_image_shape": (1, 100, 50, 50), "needs_cascade": False},
     ],
     indirect=True,
 )
 def test_whole_preprocessing_pipeline(full_pipeline_dataset):
-    return
     dataset_dir, params = full_pipeline_dataset
     target_image_shape = params["target_image_shape"]
     needs_cascade = params["needs_cascade"]

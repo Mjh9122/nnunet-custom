@@ -70,8 +70,8 @@ def normalize(
             image = normalized
         else:
             # Non-CT without cropping threshold met -> nothing special
-            mean = image.mean(axis = (1, 2, 3)).reshape((-1, 1, 1, 1)) 
-            std = image.std(axis = (1, 2, 3)).reshape((-1, 1, 1, 1))
+            mean = image.mean(axis=(1, 2, 3)).reshape((-1, 1, 1, 1))
+            std = image.std(axis=(1, 2, 3)).reshape((-1, 1, 1, 1))
             image = (image - mean) / std
     return image
 

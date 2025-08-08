@@ -29,7 +29,11 @@ np.random.seed(42)
     "image, old_spacing, new_spacing",
     (
         (np.ones((4, 4, 4)), np.array((1.0, 1.0, 1.0)), np.array((2.0, 2.0))),
-        (np.ones((4, 4, 4, 4)), np.array((1.0, 1.0, 1.0)), np.array((2.0, 2.0, 2.0))),
+        (
+            np.ones((4, 4, 4, 4)),
+            np.array((1.0, 1.0, 1.0, 1.0)),
+            np.array((2.0, 2.0, 2.0)),
+        ),
     ),
 )
 def test_resample_image_bad_spacings(image, old_spacing, new_spacing):
@@ -40,11 +44,11 @@ def test_resample_image_bad_spacings(image, old_spacing, new_spacing):
 @pytest.mark.parametrize(
     "old_dims, old_spacing, new_spacing, expected",
     (
-        ((16, 32, 32), (2.0, 1.0, 1.0), (2.0, 2.0, 2.0), (16, 16, 16)),
-        ((16, 16, 16), (0.33, 0.33, 0.33), (0.33, 0.33, 0.33), (16, 16, 16)),
-        ((100, 100, 50), (1.0, 1.0, 2.0), (0.5, 0.5, 1.0), (200, 200, 100)),
-        ((100, 100, 50), (1.0, 1.0, 2.0), (10.0, 10.0, 10.0), (10, 10, 10)),
-        ((10, 10, 10), (10.0, 10.0, 10.0), (1.0, 1.0, 2.0), (100, 100, 50)),
+        ((1, 16, 32, 32), (2.0, 1.0, 1.0), (2.0, 2.0, 2.0), (1, 16, 16, 16)),
+        ((2, 16, 16, 16), (0.33, 0.33, 0.33), (0.33, 0.33, 0.33), (2, 16, 16, 16)),
+        ((1, 100, 100, 50), (1.0, 1.0, 2.0), (0.5, 0.5, 1.0), (1, 200, 200, 100)),
+        ((1, 100, 100, 50), (1.0, 1.0, 2.0), (10.0, 10.0, 10.0), (1, 10, 10, 10)),
+        ((3, 10, 10, 10), (10.0, 10.0, 10.0), (1.0, 1.0, 2.0), (3, 100, 100, 50)),
     ),
 )
 def test_resample_image_expected_dims(old_dims, old_spacing, new_spacing, expected):
@@ -55,7 +59,7 @@ def test_resample_image_expected_dims(old_dims, old_spacing, new_spacing, expect
 
 
 def test_rasample_image_range_preservation():
-    old_dims = (64, 32, 32)
+    old_dims = (1, 64, 32, 32)
     old_spacing = (1.0, 0.5, 0.5)
     new_spacing = (1.5, 0.75, 0.75)
     img = np.random.rand(*old_dims) * 1000
@@ -68,7 +72,7 @@ def test_rasample_image_range_preservation():
 
 
 def test_resample_image_energy_preservation():
-    old_dims = (64, 32, 32)
+    old_dims = (1, 64, 32, 32)
     old_spacing = (1.0, 0.5, 0.5)
     new_spacing = (1.0, 1.0, 1.0)
     img = np.random.rand(*old_dims) * 1000
@@ -85,7 +89,7 @@ def test_resample_image_energy_preservation():
 
 def test_resample_image_uniform():
     const = 1000
-    old_dims = (64, 32, 32)
+    old_dims = (1, 64, 32, 32)
     old_spacing = (5.0, 0.1, 0.1)
     new_spacing = (1.0, 1.0, 1.0)
     img = np.ones(old_dims) * const
@@ -99,18 +103,15 @@ def test_resample_image_uniform():
 
 
 def test_resample_image_seg_mask_up():
-    img = np.array([[[1], [0]], [[0], [1]]])
+    a = [0, 0]
+    b = [0, 1]
+    c = [1, 0]
+    d = [1, 1]
+    img = np.array([[[a, b], [c, d]]])
     old_spacing = (2, 2, 2)
     new_spacing = (1, 1, 2)
 
-    expected = np.array(
-        [
-            [[1], [1], [0], [0]],
-            [[1], [1], [0], [0]],
-            [[0], [0], [1], [1]],
-            [[0], [0], [1], [1]],
-        ]
-    )
+    expected = np.array([[[a, a, b, b], [a, a, b, b], [c, c, d, d], [c, c, d, d]]])
 
     reshaped = resample_image(img, old_spacing, new_spacing, True)
 
@@ -120,16 +121,18 @@ def test_resample_image_seg_mask_up():
 def test_resample_image_seg_mask_down():
     img = np.array(
         [
-            [[1], [1], [0], [0]],
-            [[1], [1], [0], [0]],
-            [[0], [0], [1], [1]],
-            [[0], [0], [1], [1]],
+            [
+                [[1], [1], [0], [0]],
+                [[1], [1], [0], [0]],
+                [[0], [0], [1], [1]],
+                [[0], [0], [1], [1]],
+            ]
         ]
     )
     old_spacing = (1, 1, 2)
     new_spacing = (2, 2, 2)
 
-    expected = np.array([[[1], [0]], [[0], [1]]])
+    expected = np.array([[[[1], [0]], [[0], [1]]]])
 
     reshaped = resample_image(img, old_spacing, new_spacing, True)
 
@@ -138,10 +141,10 @@ def test_resample_image_seg_mask_down():
 
 def test_bad_spacings():
     with pytest.raises(Exception):
-        resample_image(np.ones((10, 10)), (0.1, 0.1), (0.1, 0.1, 0.1), True)
+        resample_image(np.ones((1, 10, 10, 10)), (0.1, 0.1), (0.1, 0.1, 0.1), True)
 
     with pytest.raises(Exception):
-        resample_image(np.ones((10, 10)), (0.1, 0.1, 0.1), (0.1, 0.1, 0.1), True)
+        resample_image(np.ones((1, 10, 10, 10)), (0.1, 0.1, 0.1), (0.1, 0.1), True)
 
 
 def setup_dataset():
@@ -156,9 +159,10 @@ def setup_dataset():
         os.mkdir(TEST_DATA_DIR / "resampled")
 
     arrs = [
-        np.random.randint(0, 1000, (16, 16, 16)).astype(np.float32) for _ in range(10)
+        np.random.randint(0, 1000, (2, 16, 16, 16)).astype(np.float32)
+        for _ in range(10)
     ]
-    masks = [np.random.choice([0, 1], (16, 16, 16), p=[0.2, 0.8]) for _ in range(10)]
+    masks = [np.random.choice([0, 1], (2, 16, 16, 16), p=[0.2, 0.8]) for _ in range(10)]
     pickles = [
         {"spacing": ((i + 1) * 1.0, (i + 1) * 1.0, (i + 1) * 1.0)} for i in range(10)
     ]
@@ -199,7 +203,7 @@ def test_resample_directory():
         spacing,
     )
 
-    np.testing.assert_array_equal(np.array((29, 44, 44)), result)
+    np.testing.assert_array_equal(np.array((2, 29, 44, 44)), result)
 
     for i, image in enumerate(images):
         img = sitk.ReadImage(TEST_DATA_DIR / "resampled" / "imagesTr" / image)

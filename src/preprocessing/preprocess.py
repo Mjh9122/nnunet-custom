@@ -83,7 +83,9 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
     dataset_stats["post_crop_shape"] = np.median(postcrop_dims, 1)
 
     spacings = np.array(spacings).T
-    dataset_stats["spacing"] = np.median(spacings, 1)
+    print(f"Spacings found: {spacings}")
+    dataset_stats["spacing"] = tuple(np.median(spacings, 1))
+    print(f"Median spacing: {dataset_stats['spacing']}")
 
     dataset_stats["cropping_threshold_met"] = (
         dataset_stats["pre_crop_shape"].prod() * 3 / 4
@@ -200,7 +202,7 @@ def select_cv_fold(dataset_dir: Path, images_list: List[str], output_dir: Path):
         shutil.copy(all_labels / img, selected_labels / img)
 
 
-def determine_cascade_necessity(median_shape: Tuple[int, int, int]) -> bool:
+def determine_cascade_necessity(median_shape: Tuple[int, int, int, int]) -> bool:
     """Determines if U-Net Cascade needed based on nnU-Net heuristics.
 
     Returns True if median shape contains >4x voxels than can be processed
@@ -219,17 +221,17 @@ def determine_cascade_necessity(median_shape: Tuple[int, int, int]) -> bool:
 
 
 def lower_resolution(
-    median_shape: Tuple[int, int, int],
+    median_shape: Tuple[int, int, int, int],
     voxel_spacing: Tuple[float, float, float],
 ) -> Tuple[float, float, float]:
     """Follows nnU-net algorithm for lowering image resolution for input into 3d cascade.
     Determines appropriate size and voxel spacing for resampling images.
 
     For anisotropic images, higher resolution axes are resampled first.
-    Once resolution on all axis is the same, all axes are resampled simultaniously.
+    Once resolution on all axis is the same, all axes are resampled simultaneously.
 
     Args:
-        median_shape (Tuple[float, float, float]): Median shape of dataset
+        median_shape (Tuple[int, int, int, int]): Median shape of dataset
         voxel_spacing (Tuple[float, float, float]): voxel spacing of dataset
 
     Returns:
@@ -244,6 +246,7 @@ def lower_resolution(
     while total_voxels > 4 * max_voxels:
         high_res_axis = current_spacing == min(current_spacing)
         current_spacing[high_res_axis] *= 2
+        high_res_axis = np.insert(high_res_axis, 0, False)
         current_size[high_res_axis] //= 2
         total_voxels = current_size.prod()
 
@@ -320,6 +323,9 @@ def preprocess_dataset(dataset_dir: Path, cv_split: List[str], output_dir: Path)
         stats["spacing"],
     )
     # 6. Determine Cascade necessity
+    print(stats["pre_crop_shape"])
+    print(stats["post_crop_shape"])
+    print(stats["post_resample_shape"])
     cascade_needed = determine_cascade_necessity(stats["post_resample_shape"])
 
     # 7. Generate low resolution image if needed -> place in dataset_dir / low_res

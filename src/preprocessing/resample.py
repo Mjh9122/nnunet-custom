@@ -36,13 +36,15 @@ def resample_image(
     Returns:
         NDArray: resampled image
     """
-    if len(old_spacing) != len(new_spacing):
-        raise ValueError("New and old spacings must have same length")
+    assert len(image.shape) == 4
+    assert len(old_spacing) == 3
+    assert len(new_spacing) == 3
 
     old_dims = np.array(image.shape)
+    old_spacing = (1,) + old_spacing
+    new_spacing = (1,) + new_spacing
 
-    if len(old_dims) != len(new_spacing):
-        raise ValueError("New spacing and image shape must have same length")
+    print(old_dims, old_spacing, new_spacing)
 
     new_dims = np.array(
         [

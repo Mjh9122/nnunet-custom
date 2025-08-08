@@ -39,7 +39,7 @@ def test_normalize_ct_withzeros():
 
     expected = np.clip(img, *clipping_thresh)
     expected -= mean_std[0]
-    expected /= mean_std[1]    
+    expected /= mean_std[1]
 
     np.testing.assert_allclose(expected, result)
 
@@ -49,70 +49,56 @@ def test_normalize_non_ct_nonzeros():
     nonzeros = np.arange(16).reshape(1, 4, 2, 2)
     img[:, :, 1:3, 1:3] = nonzeros
 
-    result = normalize(
-        img,
-        "MRI",
-        cropping_threshold_met = False
-    )
+    result = normalize(img, "MRI", cropping_threshold_met=False)
 
     expected = img.copy()
     expected -= img.mean()
-    expected /= img.std()       
+    expected /= img.std()
 
     np.testing.assert_allclose(expected, result)
 
+
 def test_normalize_multichannel():
-    img = np.zeros((3, 4, 4, 4), dtype = np.float32)
+    img = np.zeros((3, 4, 4, 4), dtype=np.float32)
     nonzeros = np.arange(24).reshape((3, 2, 2, 2))
     img[:, 1:3, 1:3, 1:3] = nonzeros
 
-    result = normalize(
-        img, 
-        "MRI",
-        cropping_threshold_met = False
-    )
+    result = normalize(img, "MRI", cropping_threshold_met=False)
 
     expected = img.copy()
-    expected -= img.mean(axis = (1, 2, 3)).reshape((3, 1, 1, 1))
-    expected /= img.std(axis = (1, 2, 3)).reshape((3, 1, 1, 1))
+    expected -= img.mean(axis=(1, 2, 3)).reshape((3, 1, 1, 1))
+    expected /= img.std(axis=(1, 2, 3)).reshape((3, 1, 1, 1))
 
     np.testing.assert_allclose(expected, result)
+
 
 def test_threshold_single_channel():
     img = np.zeros((1, 4, 4, 4), dtype=np.float32)
     nonzeros = np.arange(16).reshape(1, 4, 2, 2)
     img[:, :, 1:3, 1:3] = nonzeros
 
-    result = normalize(
-        img,
-        "MRI",
-        cropping_threshold_met = True
-    )
+    result = normalize(img, "MRI", cropping_threshold_met=True)
 
     expected = img.copy()
     expected -= img[img != 0].mean()
-    expected /= img[img != 0].std()       
+    expected /= img[img != 0].std()
 
     np.testing.assert_allclose(expected, result)
+
 
 def test_threshold_multi_channel():
     img = np.zeros((3, 4, 4, 4), dtype=np.float32)
     nonzeros = np.arange(48).reshape(3, 4, 2, 2)
     img[:, :, 1:3, 1:3] = nonzeros
 
-    result = normalize(
-        img,
-        "MRI",
-        cropping_threshold_met = True
-    )
+    result = normalize(img, "MRI", cropping_threshold_met=True)
 
     for i, channel in enumerate(img):
         expected = channel.copy()
         expected -= channel[channel != 0].mean()
-        expected /= channel[channel != 0].std()       
+        expected /= channel[channel != 0].std()
         np.testing.assert_allclose(result[i], expected)
 
-    
 
 def test_incorrect_params():
     with pytest.raises(Exception):
@@ -148,22 +134,21 @@ def setup_dataset():
     CT_solutions = [CT_map(arr) for arr in arrs]
 
     threshold_solutions = []
-    for img in arrs: 
-        solution = np.zeros_like(img) 
+    for img in arrs:
+        solution = np.zeros_like(img)
         for i, channel in enumerate(img):
             expected = channel.astype(float)
             expected -= channel[channel != 0].mean()
-            expected /= channel[channel != 0].std()       
+            expected /= channel[channel != 0].std()
             solution[i] = expected
         threshold_solutions.append(solution)
 
-
     no_threshold_solutions = []
-    for img in arrs: 
-        solution = np.zeros_like(img) 
+    for img in arrs:
+        solution = np.zeros_like(img)
         for i, channel in enumerate(img):
             expected = channel.astype(float)
-            solution[i] = (expected - channel.mean())/channel.std()
+            solution[i] = (expected - channel.mean()) / channel.std()
     return CT_solutions, threshold_solutions, no_threshold_solutions
 
 
@@ -210,5 +195,15 @@ def test_normalize_dataset():
     )
 
     check_solutions(no_threshold_solutions, TEST_DATA_DIR / "no_threshold")
+
+    for image in os.listdir(TEST_DATA_DIR / "no_threshold"):
+        normed = sitk.ReadImage(TEST_DATA_DIR / "no_threshold" / image)
+        normed_np = sitk.GetArrayFromImage(normed)
+        np.testing.assert_allclose(
+            normed_np.mean(axis=(1, 2, 3)), np.zeros(normed_np.shape[0]), atol=1e-7
+        )
+        np.testing.assert_allclose(
+            normed_np.std(axis=(1, 2, 3)), np.ones(normed_np.shape[0]), atol=1e-7
+        )
 
     tear_down_dataset()
