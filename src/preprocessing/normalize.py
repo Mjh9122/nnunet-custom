@@ -94,6 +94,10 @@ def normalize_dataset(dataset_dir: Path, output_dir: Path, dataset_stats: Dict) 
     for image in images:
         img = sitk.ReadImage(dataset_dir / image)
         img_np = sitk.GetArrayFromImage(img)
+        
+        if img_np.ndim != 4:
+            img_np = img_np.reshape((1, *img_np.shape))
+                
         if modality == "CT":
             img_normalized_np = normalize(
                 img_np,

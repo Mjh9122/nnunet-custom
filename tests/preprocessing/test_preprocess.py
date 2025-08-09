@@ -414,9 +414,14 @@ def full_pipeline_dataset(request):
         img_sitk.SetSpacing(spacing)
 
         mask_sitk = sitk.GetImageFromArray(mask)
+        
+        print("spacing on image write", img_sitk.GetSpacing())
+        print("origin on image write", img_sitk.GetOrigin())
+        print("shape on image_write", img_sitk.GetSize())
 
         sitk.WriteImage(img_sitk, dataset_dir / "imagesTr" / f"img{i}.nii.gz")
         sitk.WriteImage(mask_sitk, dataset_dir / "labelsTr" / f"img{i}.nii.gz")
+
 
     dataset_json = {
         "name": "test",

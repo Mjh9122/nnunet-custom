@@ -80,15 +80,17 @@ def crop_dataset(dataset_dir: Path, output_dir: Path):
         img = sitk.ReadImage(image_path / image)
         mask = sitk.ReadImage(label_path / image)
 
+        print("spacing on image read:", img.GetSpacing())
+
         spacing = img.GetSpacing()
         img_np = sitk.GetArrayFromImage(img)
         mask_np = sitk.GetArrayFromImage(mask)
 
         if img_np.ndim == 3:
-            img_np.reshape((1, *img_np.shape))
+            img_np = img_np.reshape((1, *img_np.shape))
         
         if mask_np.ndim == 3:
-            mask_np.reshape((1, *mask.shape))
+            mask_np = mask_np.reshape((1, *mask_np.shape))
 
         assert img_np.ndim == 4
         assert mask_np.ndim == 4
@@ -105,6 +107,7 @@ def crop_dataset(dataset_dir: Path, output_dir: Path):
         mask_crop = sitk.GetImageFromArray(mask_crop_np)
         sitk.WriteImage(mask_crop, cropped_labels_path / image)
 
+        print(f"Spacing in crop dataset loop: {spacing}")
         stats = {
             "pre_crop_shape": pre_crop_size,
             "post_crop_shape": post_crop_size,

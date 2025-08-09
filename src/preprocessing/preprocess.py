@@ -71,7 +71,6 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
             postcrop_dims.append(stats["post_crop_shape"])
             spacings.append(stats["spacing"])
 
-    print(precrop_dims)
     precrop_dims = np.array(precrop_dims).T
     assert len(set(precrop_dims[0])) == 1  # assert channels are all equal
     assert len(precrop_dims[:, 0]) == 4  # assert 3 spatial dims and channel dim
@@ -83,9 +82,10 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
     dataset_stats["pre_crop_shape"] = np.median(precrop_dims, 1)
     dataset_stats["post_crop_shape"] = np.median(postcrop_dims, 1)
 
-    spacings = np.array(spacings).T
     print(f"Spacings found: {spacings}")
+    spacings = np.array(spacings).T
     dataset_stats["spacing"] = tuple(np.median(spacings, 1))
+    assert len(dataset_stats["spacing"]) == 3
     print(f"Median spacing: {dataset_stats['spacing']}")
 
     dataset_stats["cropping_threshold_met"] = (
@@ -324,9 +324,9 @@ def preprocess_dataset(dataset_dir: Path, cv_split: List[str], output_dir: Path)
         stats["spacing"],
     )
     # 6. Determine Cascade necessity
-    print(stats["pre_crop_shape"])
-    print(stats["post_crop_shape"])
-    print(stats["post_resample_shape"])
+    print("pre crop shape", stats["pre_crop_shape"])
+    print("post crop shape", stats["post_crop_shape"])
+    print("post resample shape", stats["post_resample_shape"])
     cascade_needed = determine_cascade_necessity(stats["post_resample_shape"])
 
     # 7. Generate low resolution image if needed -> place in dataset_dir / low_res

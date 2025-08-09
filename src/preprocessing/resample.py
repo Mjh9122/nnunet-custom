@@ -44,8 +44,6 @@ def resample_image(
     old_spacing = (1,) + old_spacing
     new_spacing = (1,) + new_spacing
 
-    print(old_dims, old_spacing, new_spacing)
-
     new_dims = np.array(
         [
             int(dim * old / new)
