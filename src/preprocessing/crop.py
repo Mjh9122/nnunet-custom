@@ -84,6 +84,15 @@ def crop_dataset(dataset_dir: Path, output_dir: Path):
         img_np = sitk.GetArrayFromImage(img)
         mask_np = sitk.GetArrayFromImage(mask)
 
+        if img_np.ndim == 3:
+            img_np.reshape((1, *img_np.shape))
+        
+        if mask_np.ndim == 3:
+            mask_np.reshape((1, *mask.shape))
+
+        assert img_np.ndim == 4
+        assert mask_np.ndim == 4
+
         pre_crop_size = img_np.shape
 
         img_crop_np, mask_crop_np = crop_zeros(img_np, mask_np)

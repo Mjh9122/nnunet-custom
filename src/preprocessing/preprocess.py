@@ -71,6 +71,7 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
             postcrop_dims.append(stats["post_crop_shape"])
             spacings.append(stats["spacing"])
 
+    print(precrop_dims)
     precrop_dims = np.array(precrop_dims).T
     assert len(set(precrop_dims[0])) == 1  # assert channels are all equal
     assert len(precrop_dims[:, 0]) == 4  # assert 3 spatial dims and channel dim

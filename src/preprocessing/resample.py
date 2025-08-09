@@ -36,7 +36,7 @@ def resample_image(
     Returns:
         NDArray: resampled image
     """
-    assert len(image.shape) == 4
+    assert image.ndim == 4
     assert len(old_spacing) == 3
     assert len(new_spacing) == 3
 

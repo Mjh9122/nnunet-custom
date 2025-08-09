@@ -41,7 +41,7 @@ def normalize(
     Returns:
         NDArray: normalized image
     """
-    assert len(image.shape) == 4
+    assert image.ndim == 4
 
     if modality == "CT":
         if dataset_stats is None:
