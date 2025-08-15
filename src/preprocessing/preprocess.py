@@ -82,11 +82,9 @@ def compute_dataset_stats(dataset_dir: Path, modality: str) -> Dict[str, Any]:
     dataset_stats["pre_crop_shape"] = np.median(precrop_dims, 1)
     dataset_stats["post_crop_shape"] = np.median(postcrop_dims, 1)
 
-    print(f"Spacings found: {spacings}")
     spacings = np.array(spacings).T
     dataset_stats["spacing"] = tuple(np.median(spacings, 1))
     assert len(dataset_stats["spacing"]) == 3
-    print(f"Median spacing: {dataset_stats['spacing']}")
 
     dataset_stats["cropping_threshold_met"] = (
         dataset_stats["pre_crop_shape"].prod() * 3 / 4
@@ -306,6 +304,7 @@ def preprocess_dataset(dataset_dir: Path, cv_split: List[str], output_dir: Path)
 
     # 2. Crop data + generate pickles -> replace output_dir
     crop_dataset(output_dir / "original", output_dir / "cropped")
+    return
 
     # 3. Calculate dataset stats
     stats.update(compute_dataset_stats(output_dir / "cropped", modality))
@@ -324,9 +323,6 @@ def preprocess_dataset(dataset_dir: Path, cv_split: List[str], output_dir: Path)
         stats["spacing"],
     )
     # 6. Determine Cascade necessity
-    print("pre crop shape", stats["pre_crop_shape"])
-    print("post crop shape", stats["post_crop_shape"])
-    print("post resample shape", stats["post_resample_shape"])
     cascade_needed = determine_cascade_necessity(stats["post_resample_shape"])
 
     # 7. Generate low resolution image if needed -> place in dataset_dir / low_res

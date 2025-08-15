@@ -95,9 +95,11 @@ def normalize_dataset(dataset_dir: Path, output_dir: Path, dataset_stats: Dict) 
         img = sitk.ReadImage(dataset_dir / image)
         img_np = sitk.GetArrayFromImage(img)
         
-        if img_np.ndim != 4:
+        if img_np.ndim == 3:
             img_np = img_np.reshape((1, *img_np.shape))
-                
+        else:
+            img_np = np.transpose(img_np, (3, 0, 1, 2))
+
         if modality == "CT":
             img_normalized_np = normalize(
                 img_np,
@@ -109,6 +111,7 @@ def normalize_dataset(dataset_dir: Path, output_dir: Path, dataset_stats: Dict) 
         else:
             img_normalized_np = normalize(img_np, modality, cropping_threshold_met)
 
+        img_normalized_np = np.transpose(img_normalized_np, (1, 2, 3, 0))
         img_normalized = sitk.GetImageFromArray(img_normalized_np)
 
         sitk.WriteImage(img_normalized, output_dir / image)

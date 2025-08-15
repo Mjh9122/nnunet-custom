@@ -356,6 +356,7 @@ def create_test_images(shape):
     assert len(shape) == 4
     channels, *spatial = shape
 
+    # spacing in SITK images is (z, y, x)
     spacings = [
         (0.5, 0.25, 0.25),
         (0.3, 0.3, 0.3),
@@ -378,6 +379,9 @@ def create_test_images(shape):
     imgs = []
     masks = []
 
+    #print(orig_dims)
+    #print([s.shape for s in zero_buffers])
+
     for non_zero, buffer in zip(non_zeros, zero_buffers):
         img = buffer.copy()
         img[:, 5:-5, 5:-5, 5:-5] = non_zero
@@ -387,7 +391,7 @@ def create_test_images(shape):
         imgs.append(img)
         masks.append(mask)
 
-    return imgs, masks, spacings
+    return imgs, masks, spacings, orig_dims
 
 
 @pytest.fixture()
@@ -405,23 +409,23 @@ def full_pipeline_dataset(request):
     os.mkdir(dataset_dir / "labelsTr")
     os.mkdir(dataset_dir / "output")
 
-    imgs, masks, spacings = create_test_images(target_image_shape)
+    imgs, masks, spacings, orig_dims = create_test_images(target_image_shape)
 
     for i, (img, mask, spacing) in enumerate(zip(imgs, masks, spacings)):
-        print(img.shape, mask.shape, spacing)
+        img = np.transpose(img, (3, 2, 1, 0))
+        mask = np.transpose(mask, (3, 2, 1, 0))
 
+        if img.shape[3] == 1:
+            spacing = spacing + (1.0, )
+        
         img_sitk = sitk.GetImageFromArray(img)
-        img_sitk.SetSpacing(spacing)
+        img_sitk.SetSpacing((spacing[2], spacing[1], spacing[0]))
 
         mask_sitk = sitk.GetImageFromArray(mask)
-        
-        print("spacing on image write", img_sitk.GetSpacing())
-        print("origin on image write", img_sitk.GetOrigin())
-        print("shape on image_write", img_sitk.GetSize())
-
+ 
         sitk.WriteImage(img_sitk, dataset_dir / "imagesTr" / f"img{i}.nii.gz")
         sitk.WriteImage(mask_sitk, dataset_dir / "labelsTr" / f"img{i}.nii.gz")
-
+        
 
     dataset_json = {
         "name": "test",
@@ -445,7 +449,7 @@ def full_pipeline_dataset(request):
     with open(dataset_dir / "dataset.json", "w") as file:
         json.dump(dataset_json, file)
 
-    yield (dataset_dir, params)
+    yield (dataset_dir, params, spacings, orig_dims)
 
     tear_down_dataset()
 
@@ -459,13 +463,28 @@ def full_pipeline_dataset(request):
     indirect=True,
 )
 def test_whole_preprocessing_pipeline(full_pipeline_dataset):
-    dataset_dir, params = full_pipeline_dataset
+    dataset_dir, params, spacings, orig_dims = full_pipeline_dataset
     target_image_shape = params["target_image_shape"]
     needs_cascade = params["needs_cascade"]
 
     preprocess_dataset(
         dataset_dir, os.listdir(dataset_dir / "imagesTr"), dataset_dir / "output"
     )
+
+    # test all crops are the correct dims
+    cropped_shapes = []
+    imgs_dir = dataset_dir / "output" / "cropped" / "imagesTr"
+    for i in os.listdir(imgs_dir): 
+        img = sitk.ReadImage(imgs_dir / i)
+        img_np = sitk.GetArrayFromImage(img)
+        
+        shape = img_np.shape
+        if len(shape) == 3:
+            shape = shape + (1, )
+        cropped_shapes.append(shape[::-1])
+
+    assert set(cropped_shapes) == set([tuple(dims) for dims in orig_dims])
+    return 
 
     with open(dataset_dir / "output" / "dataset_stats.pkl", "rb") as file:
         stats = pkl.load(file)
