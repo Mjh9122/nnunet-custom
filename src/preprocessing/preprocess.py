@@ -304,7 +304,6 @@ def preprocess_dataset(dataset_dir: Path, cv_split: List[str], output_dir: Path)
 
     # 2. Crop data + generate pickles -> replace output_dir
     crop_dataset(output_dir / "original", output_dir / "cropped")
-    return
 
     # 3. Calculate dataset stats
     stats.update(compute_dataset_stats(output_dir / "cropped", modality))
@@ -322,6 +321,7 @@ def preprocess_dataset(dataset_dir: Path, cv_split: List[str], output_dir: Path)
         output_dir / "high_res",
         stats["spacing"],
     )
+    return
     # 6. Determine Cascade necessity
     cascade_needed = determine_cascade_necessity(stats["post_resample_shape"])
 

@@ -122,7 +122,10 @@ def setup_dataset():
 
     arrs = [arr1, arr2, arr3]
 
-    imgs = [sitk.GetImageFromArray(arr) for arr in arrs]
+
+    arrs_t = [np.transpose(arr, (3, 2, 1, 0)) for arr in arrs]
+
+    imgs = [sitk.GetImageFromArray(arr) for arr in arrs_t]
     for i, img in enumerate(imgs):
         sitk.WriteImage(img, TEST_DATA_DIR / "crops" / f"test0{i}.nii.gz")
 
@@ -162,6 +165,7 @@ def check_solutions(solutions, images_path):
     for solution, img in zip(solutions, images):
         normalized_img = sitk.ReadImage(images_path / img)
         normalized_np = sitk.GetArrayFromImage(normalized_img)
+        normalized_np = np.transpose(normalized_np, (3, 2, 1, 0))
         np.testing.assert_allclose(normalized_np, solution)
 
 
@@ -199,6 +203,8 @@ def test_normalize_dataset():
     for image in os.listdir(TEST_DATA_DIR / "no_threshold"):
         normed = sitk.ReadImage(TEST_DATA_DIR / "no_threshold" / image)
         normed_np = sitk.GetArrayFromImage(normed)
+        normed_np = np.transpose(normed_np, (3, 2, 1, 0))
+
         np.testing.assert_allclose(
             normed_np.mean(axis=(1, 2, 3)), np.zeros(normed_np.shape[0]), atol=1e-7
         )

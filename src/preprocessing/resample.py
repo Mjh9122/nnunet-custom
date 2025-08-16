@@ -46,7 +46,7 @@ def resample_image(
 
     new_dims = np.array(
         [
-            int(dim * old / new)
+            round(dim * old / new)
             for dim, old, new in zip(old_dims, old_spacing, new_spacing)
         ]
     )
@@ -108,6 +108,19 @@ def resample_dataset(
         mask = sitk.ReadImage(labels_dir / image)
         mask_np = sitk.GetArrayFromImage(mask)
 
+        if img_np.ndim == 3:
+            img_np = img_np[..., np.newaxis]
+
+        img_np = np.transpose(img_np, (3, 2, 1, 0))
+
+        if mask_np.ndim == 3:
+            mask_np = mask_np[..., np.newaxis] 
+            
+        mask_np = np.transpose(mask_np, (3, 2, 1, 0))
+
+        assert img_np.ndim == 4
+        assert mask_np.ndim == 4
+        
         if img_np.shape != mask_np.shape:
             raise ValueError(
                 f"images and masks must be the same shape {img_np.shape} {mask_np.shape}"
@@ -122,6 +135,9 @@ def resample_dataset(
 
         new_shapes.append(img_resampled_np.shape)
 
+        img_resampled_np = np.transpose(img_resampled_np, (3, 2, 1, 0))
+        mask_resampled_np = np.transpose(mask_resampled_np, (3, 2, 1, 0))
+
         img_resampled = sitk.GetImageFromArray(img_resampled_np)
         mask_resampled = sitk.GetImageFromArray(mask_resampled_np)
 
@@ -129,4 +145,4 @@ def resample_dataset(
         sitk.WriteImage(mask_resampled, output_dir / "labelsTr" / image)
 
     new_shapes = np.array(new_shapes).T
-    return np.median(new_shapes, axis=1)
+    return np.median(new_shapes, axis=1).astype(int)

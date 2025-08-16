@@ -379,8 +379,6 @@ def create_test_images(shape):
     imgs = []
     masks = []
 
-    #print(orig_dims)
-    #print([s.shape for s in zero_buffers])
 
     for non_zero, buffer in zip(non_zeros, zero_buffers):
         img = buffer.copy()
@@ -453,6 +451,20 @@ def full_pipeline_dataset(request):
 
     tear_down_dataset()
 
+def check_shapes_of_saved_imgs(dataset_dir, expected_dims):
+    shapes = []
+    imgs_dir = dataset_dir 
+    for i in os.listdir(imgs_dir ): 
+        img = sitk.ReadImage(imgs_dir / i)
+        img_np = sitk.GetArrayFromImage(img)
+        
+        shape = img_np.shape
+        if len(shape) == 3:
+            shape = shape + (1, )
+        shapes.append(shape[::-1])
+
+    assert set(shapes) == set([tuple(dims) for dims in expected_dims])
+
 
 @pytest.mark.parametrize(
     "full_pipeline_dataset",
@@ -464,6 +476,8 @@ def full_pipeline_dataset(request):
 )
 def test_whole_preprocessing_pipeline(full_pipeline_dataset):
     dataset_dir, params, spacings, orig_dims = full_pipeline_dataset
+    dim_median = np.median(orig_dims, axis = 0)
+    print(dim_median)
     target_image_shape = params["target_image_shape"]
     needs_cascade = params["needs_cascade"]
 
@@ -471,21 +485,11 @@ def test_whole_preprocessing_pipeline(full_pipeline_dataset):
         dataset_dir, os.listdir(dataset_dir / "imagesTr"), dataset_dir / "output"
     )
 
-    # test all crops are the correct dims
-    cropped_shapes = []
-    imgs_dir = dataset_dir / "output" / "cropped" / "imagesTr"
-    for i in os.listdir(imgs_dir): 
-        img = sitk.ReadImage(imgs_dir / i)
-        img_np = sitk.GetArrayFromImage(img)
-        
-        shape = img_np.shape
-        if len(shape) == 3:
-            shape = shape + (1, )
-        cropped_shapes.append(shape[::-1])
+    check_shapes_of_saved_imgs(dataset_dir / "output" / "cropped" / "imagesTr", orig_dims)
+    check_shapes_of_saved_imgs(dataset_dir / "output" / "normalized", orig_dims)
+    check_shapes_of_saved_imgs(dataset_dir / "output" / "high_res" / "imagesTr", [dim_median])
 
-    assert set(cropped_shapes) == set([tuple(dims) for dims in orig_dims])
     return 
-
     with open(dataset_dir / "output" / "dataset_stats.pkl", "rb") as file:
         stats = pkl.load(file)
 

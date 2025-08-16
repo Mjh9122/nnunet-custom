@@ -168,10 +168,12 @@ def setup_dataset():
     ]
 
     for i, (arr, mask_np, pickle) in enumerate(zip(arrs, masks, pickles)):
-        img = sitk.GetImageFromArray(arr)
+        img_t = np.transpose(arr, (3, 2, 1, 0))
+        img = sitk.GetImageFromArray(img_t)
         sitk.WriteImage(img, TEST_DATA_DIR / "images" / f"test{i}.nii.gz")
 
-        mask = sitk.GetImageFromArray(mask_np)
+        mask_t = np.transpose(mask_np, (3, 2, 1, 0))
+        mask = sitk.GetImageFromArray(mask_t)
         sitk.WriteImage(mask, TEST_DATA_DIR / "labels" / f"test{i}.nii.gz")
 
         with open(TEST_DATA_DIR / "pickles" / f"test{i}.pkl", "wb") as file:
@@ -208,12 +210,14 @@ def test_resample_directory():
     for i, image in enumerate(images):
         img = sitk.ReadImage(TEST_DATA_DIR / "resampled" / "imagesTr" / image)
         img_np = sitk.GetArrayFromImage(img)
+        img_t = np.transpose(img_np, (3, 2, 1, 0))
 
         mask = sitk.ReadImage(TEST_DATA_DIR / "resampled" / "labelsTr" / image)
         mask_np = sitk.GetArrayFromImage(mask)
+        mask_t = np.transpose(mask_np, (3, 2, 1, 0))
 
-        assert img_np.shape == mask_np.shape
-        assert abs(img_np.sum() * np.prod(spacing) - energies[i]) < energies[i] * 0.1
+        assert img_t.shape == mask_t.shape
+        assert abs(img_t.sum() * np.prod(spacing) - energies[i]) < energies[i] * 0.1
 
     teardown_dataset()
 

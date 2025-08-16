@@ -7,6 +7,7 @@ warnings.filterwarnings(
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+from tqdm import tqdm 
 
 import numpy as np
 import numpy.typing as npt
@@ -91,7 +92,7 @@ def normalize_dataset(dataset_dir: Path, output_dir: Path, dataset_stats: Dict) 
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
 
-    for image in images:
+    for image in tqdm(images, desc = 'Normalizing'):
         img = sitk.ReadImage(dataset_dir / image)
         img_np = sitk.GetArrayFromImage(img)
         
